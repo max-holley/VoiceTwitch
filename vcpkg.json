@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "voicetwitch",
+  "version": "0.1.0",
+  "description": "Local, offline TTS for Twitch chat using Piper voices",
+  "dependencies": [
+    "glfw3",
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        { "name": "dx11-binding", "platform": "windows" },
+        { "name": "opengl3-binding", "platform": "!windows" }
+      ]
+    },
+    "miniaudio",
+    "nlohmann-json",
+    {
+      "name": "curl",
+      "default-features": false,
+      "features": [ "ssl", "websockets" ]
+    }
+  ],
+  "builtin-baseline": "e456309491fd875487bf02b8a0dca76c1b1b00cc"
+}

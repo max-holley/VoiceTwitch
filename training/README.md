@@ -1,0 +1,48 @@
+# Voice cloning (training)
+
+VoiceTwitch's inference is pure C++ (onnxruntime + espeak-ng). Producing a *new*
+voice, however, means fine-tuning a Piper VITS model, and Piper's training code
+is Python/PyTorch. `train_voice.py` wraps that so the app can drive it.
+
+## What the app does
+
+1. **Record** – the Voice Cloning screen walks through `assets/recording_script.txt`.
+   Each take is DC-corrected, silence-trimmed, peak-normalized to -1 dBFS and
+   resampled to 22.05 kHz mono 16-bit, then saved as
+   `cloned-voices/<name>/wavs/utt_NNNN.wav`.
+2. **Setup (first run only)** – finds Python 3.9+ (`py -3` / `python3`, or the
+   path set in Settings) and runs `train_voice.py setup`, which creates
+   `<data dir>/training-env`, downloads Piper `v1.8.0` source and installs
+   `piper-tts[train]` (PyTorch, Lightning, …) plus the `monotonic_align`
+   extension.
+3. **Train** – writes `metadata.csv`, then runs `train_voice.py train` with the
+   venv interpreter. It downloads (once) the base checkpoint configured in
+   Settings (default: `en_US-lessac-medium` from `rhasspy/piper-checkpoints`)
+   and runs `python -m piper.train fit --ckpt_path <base> ...` for N extra
+   epochs.
+4. **Export** – `python -m piper.train.export_onnx`, then copies the model and
+   its config to `cloned-voices/<name>/<name>.onnx(.json)`, where Voice Models
+   picks it up as a "Cloned" voice.
+
+## Requirements
+
+* Python 3.9–3.13 installed separately (not bundled).
+* A C/C++ compiler + CMake for Piper's native extension
+  (Windows: Visual Studio Build Tools; Linux: `build-essential cmake ninja-build`).
+* ~6–10 GB disk for PyTorch and the ~800 MB base checkpoint.
+* An NVIDIA GPU is strongly recommended. CPU training works but is very slow.
+  Linux (or WSL2) is the best-trodden path for Piper training.
+
+## Running manually
+
+```sh
+python3 train_voice.py setup --venv ~/.local/share/VoiceTwitch/training-env
+~/.local/share/VoiceTwitch/training-env/bin/python train_voice.py train \
+  --project-dir ~/.local/share/VoiceTwitch/cloned-voices/myvoice \
+  --name myvoice --output ~/.local/share/VoiceTwitch/cloned-voices/myvoice/myvoice.onnx \
+  --base-checkpoint-url "https://huggingface.co/datasets/rhasspy/piper-checkpoints/resolve/main/en/en_US/lessac/medium/epoch%3D2164-step%3D1355540.ckpt" \
+  --cache-dir ~/.local/share/VoiceTwitch/training-cache --epochs 300 --batch-size 16
+```
+
+Training on a GPU box and copying the resulting `.onnx` + `.onnx.json` into a
+folder under `cloned-voices/` works too.

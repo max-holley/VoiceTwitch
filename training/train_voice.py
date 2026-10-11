@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""VoiceTwitch voice-cloning helper.
+
+Fine-tunes a Piper voice on recordings made in the VoiceTwitch app, using the
+official Piper training code (OHF-Voice/piper1-gpl). The app runs this script
+out of process; inference never depends on Python.
+
+Subcommands:
+  setup  --venv DIR
+      Creates a virtual environment and installs Piper's training tooling.
+      Run with any Python 3.9+ interpreter.
+
+  train  --project-dir DIR --name NAME --output OUT.onnx [options]
+      Run with the venv's interpreter. Downloads the base checkpoint (cached),
+      fine-tunes on DIR/metadata.csv + DIR/wavs, exports OUT.onnx and
+      OUT.onnx.json.
+
+Progress is reported on stdout as lines of the form:  @@VT {"stage": ...}
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import urllib.request
+import venv
+import zipfile
+from pathlib import Path
+
+PIPER_VERSION = "v1.8.0"
+PIPER_ZIP_URL = f"https://github.com/OHF-Voice/piper1-gpl/archive/refs/tags/{PIPER_VERSION}.zip"
+READY_MARKER = ".voicetwitch-ready"
+
+
+def report(stage: str, message: str | None = None, **extra) -> None:
+    payload = {"stage": stage}
+    if message is not None:
+        payload["message"] = message
+    payload.update(extra)
+    print("@@VT " + json.dumps(payload), flush=True)
+
+
+def run(cmd: list[str], cwd: Path | None = None, on_line=None) -> int:
+    """Runs a command, streaming output line by line ('\\r' also ends a line so
+    progress bars show up)."""
+    print("$ " + " ".join(str(c) for c in cmd), flush=True)
+    env = dict(os.environ, PYTHONUNBUFFERED="1")
+    proc = subprocess.Popen(
+        [str(c) for c in cmd],
+        cwd=str(cwd) if cwd else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
+    assert proc.stdout is not None
+    buf = b""
+    while True:
+        chunk = proc.stdout.read1(4096) if hasattr(proc.stdout, "read1") else proc.stdout.read(1)
+        if not chunk:
+            break
+        buf += chunk
+        parts = re.split(rb"[\r\n]", buf)
+        buf = parts.pop()
+        for raw in parts:
+            line = raw.decode("utf-8", errors="replace").rstrip()
+            if not line:
+                continue
+            print(line, flush=True)
+            if on_line:
+                on_line(line)
+    if buf:
+        line = buf.decode("utf-8", errors="replace").rstrip()
+        print(line, flush=True)
+        if on_line:
+            on_line(line)
+    return proc.wait()
+
+
+def venv_python(venv_dir: Path) -> Path:
+    if os.name == "nt":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+def download(url: str, dest: Path, label: str) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    req = urllib.request.Request(url, headers={"User-Agent": "VoiceTwitch"})
+    with urllib.request.urlopen(req) as resp, open(tmp, "wb") as out:
+        total = int(resp.headers.get("Content-Length") or 0)
+        done = 0
+        last_pct = -1
+        while True:
+            block = resp.read(1 << 20)
+            if not block:
+                break
+            out.write(block)
+            done += len(block)
+            if total:
+                pct = int(done * 100 / total)
+                if pct != last_pct:
+                    last_pct = pct
+                    report("download", f"Downloading {label}: {pct}%", progress=done / total)
+    tmp.replace(dest)
+
+
+# --------------------------------------------------------------------------- setup
+
+
+def cmd_setup(args: argparse.Namespace) -> int:
+    venv_dir = Path(args.venv).resolve()
+    if sys.version_info < (3, 9):
+        print("Python 3.9 or newer is required", flush=True)
+        return 1
+
+    report("setup", "Creating virtual environment...")
+    venv.EnvBuilder(with_pip=True, clear=False).create(venv_dir)
+    py = venv_python(venv_dir)
+
+    report("setup", "Upgrading pip...")
+    if run([py, "-m", "pip", "install", "--upgrade", "pip", "wheel", "setuptools"]) != 0:
+        return 1
+
+    src_root = venv_dir / "src"
+    piper_dir = src_root / f"piper1-gpl-{PIPER_VERSION.lstrip('v')}"
+    if not piper_dir.exists():
+        report("setup", f"Downloading Piper {PIPER_VERSION} source...")
+        zip_path = src_root / "piper1-gpl.zip"
+        download(PIPER_ZIP_URL, zip_path, "Piper source")
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(src_root)
+        zip_path.unlink()
+
+    report("setup", "Installing PyTorch + Piper training dependencies (this takes a while)...")
+    if run([py, "-m", "pip", "install", "-e", ".[train]"], cwd=piper_dir) != 0:
+        print(
+            "pip install failed. Piper's training package compiles a native extension; "
+            "make sure a C/C++ compiler and CMake are available "
+            "(Windows: Visual Studio Build Tools; Linux: build-essential cmake ninja-build).",
+            flush=True,
+        )
+        return 1
+
+    report("setup", "Building monotonic alignment extension...")
+    ma_dir = piper_dir / "src" / "piper" / "train" / "vits" / "monotonic_align"
+    if run([py, "-m", "pip", "install", "cython"]) != 0:
+        return 1
+    if run([py, "-m", "Cython.Build.Cythonize", "-i", "core.pyx"], cwd=ma_dir) != 0:
+        return 1
+    target = ma_dir / "monotonic_align"
+    target.mkdir(exist_ok=True)
+    built = [p for p in ma_dir.iterdir() if p.name.startswith("core") and p.suffix in (".so", ".pyd")]
+    if not built:
+        print("monotonic_align build produced no extension module", flush=True)
+        return 1
+    for p in built:
+        shutil.move(str(p), str(target / p.name))
+
+    # Sanity check: the training entry point imports.
+    if run([py, "-c", "import piper.train, torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"]) != 0:
+        return 1
+
+    (venv_dir / READY_MARKER).write_text(PIPER_VERSION)
+    report("setup", "Training environment ready")
+    return 0
+
+
+# --------------------------------------------------------------------------- train
+
+
+def checkpoint_epoch(path: Path) -> int:
+    import torch  # noqa: PLC0415 (only available inside the venv)
+
+    ckpt = torch.load(str(path), map_location="cpu", weights_only=False)
+    return int(ckpt.get("epoch", 0))
+
+
+def newest_checkpoint(root: Path) -> Path | None:
+    ckpts = list(root.rglob("*.ckpt"))
+    if not ckpts:
+        return None
+    return max(ckpts, key=lambda p: p.stat().st_mtime)
+
+
+def cmd_train(args: argparse.Namespace) -> int:
+    project = Path(args.project_dir).resolve()
+    metadata = project / "metadata.csv"
+    wavs = project / "wavs"
+    output = Path(args.output).resolve()
+    cache_dir = Path(args.cache_dir).resolve()
+
+    if not metadata.exists() or not wavs.exists():
+        print(f"Missing {metadata} or {wavs}", flush=True)
+        return 1
+    lines = [l for l in metadata.read_text(encoding="utf-8").splitlines() if l.strip()]
+    report("prepare", f"{len(lines)} recordings found")
+
+    # Base checkpoint (shared across projects).
+    url_hash = hashlib.sha1(args.base_checkpoint_url.encode()).hexdigest()[:12]
+    base_ckpt = cache_dir / f"base-{url_hash}.ckpt"
+    if not base_ckpt.exists():
+        report("download", "Downloading base checkpoint (~800 MB, one time)...")
+        download(args.base_checkpoint_url, base_ckpt, "base checkpoint")
+
+    report("prepare", "Reading base checkpoint...")
+    start_epoch = checkpoint_epoch(base_ckpt)
+    target_epoch = start_epoch + 1 + args.epochs
+
+    work = project / "training"
+    work.mkdir(exist_ok=True)
+    config_out = work / "config.json"
+
+    epoch_re = re.compile(r"Epoch (\d+)")
+
+    def on_line(line: str) -> None:
+        m = epoch_re.search(line)
+        if m:
+            epoch = int(m.group(1))
+            done = max(0, epoch - start_epoch)
+            report(
+                "train",
+                f"Epoch {done} of {args.epochs}",
+                epoch=done,
+                target_epoch=args.epochs,
+                progress=min(1.0, done / max(1, args.epochs)),
+            )
+
+    report("train", "Starting training...", epoch=0, target_epoch=args.epochs, progress=0.0)
+    rc = run(
+        [
+            sys.executable,
+            "-m",
+            "piper.train",
+            "fit",
+            "--data.voice_name", args.name,
+            "--data.csv_path", metadata,
+            "--data.audio_dir", wavs,
+            "--model.sample_rate", str(args.sample_rate),
+            "--data.espeak_voice", args.espeak_voice,
+            "--data.cache_dir", work / "cache",
+            "--data.config_path", config_out,
+            "--data.batch_size", str(args.batch_size),
+            "--ckpt_path", base_ckpt,
+            "--trainer.max_epochs", str(target_epoch),
+            "--trainer.default_root_dir", work,
+        ],
+        cwd=work,
+        on_line=on_line,
+    )
+    if rc != 0:
+        return rc
+
+    ckpt = newest_checkpoint(work / "lightning_logs") or newest_checkpoint(work)
+    if ckpt is None:
+        print("Training produced no checkpoint", flush=True)
+        return 1
+
+    report("export", "Exporting to ONNX...")
+    tmp_onnx = work / "export.onnx"
+    rc = run([sys.executable, "-m", "piper.train.export_onnx", "--checkpoint", ckpt, "--output-file", tmp_onnx])
+    if rc != 0:
+        return rc
+    if not config_out.exists():
+        print("Training did not write a voice config", flush=True)
+        return 1
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(tmp_onnx, output)
+    shutil.copyfile(config_out, str(output) + ".json")
+    report("done", f"Wrote {output.name}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_setup = sub.add_parser("setup", help="create the training environment")
+    p_setup.add_argument("--venv", required=True)
+    p_setup.set_defaults(func=cmd_setup)
+
+    p_train = sub.add_parser("train", help="fine-tune a voice")
+    p_train.add_argument("--project-dir", required=True)
+    p_train.add_argument("--name", required=True)
+    p_train.add_argument("--output", required=True)
+    p_train.add_argument("--espeak-voice", default="en-us")
+    p_train.add_argument("--sample-rate", type=int, default=22050)
+    p_train.add_argument("--base-checkpoint-url", required=True)
+    p_train.add_argument("--cache-dir", required=True)
+    p_train.add_argument("--epochs", type=int, default=300)
+    p_train.add_argument("--batch-size", type=int, default=16)
+    p_train.set_defaults(func=cmd_train)
+
+    args = parser.parse_args()
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        return 130
+    except Exception as exc:  # surface a readable error to the app
+        print(f"Error: {exc}", flush=True)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,201 @@
+# VoiceTwitch guided recording script (English).
+# One prompt per line; lines starting with '#' are ignored.
+# Mix of phonetically varied sentences and chat-style lines so the cloned voice
+# handles both everyday speech and the kind of text it will read on stream.
+# You can edit or replace this file; existing projects keep their own copy.
+The quick brown fox jumps over the lazy dog.
+Thanks so much for the follow, welcome to the stream!
+She sells sea shells by the sea shore every summer.
+How is everybody doing tonight?
+A big thank you to everyone who stopped by today.
+The orange juice tasted sharp and a little bitter.
+Please keep the chat friendly and respectful.
+We should try that boss fight one more time.
+The birch canoe slid gently across the smooth water.
+I can't believe that actually worked!
+Seven zebras quietly grazed beside the frozen river.
+Good morning, good afternoon, and good evening, depending on where you are.
+What do you think, should we go left or right?
+Bright yellow vans jostled through the busy junction.
+The thick fog made the old village feel strangely quiet.
+Let me know in chat if the audio is too loud.
+Thirty three thousand thirsty thinkers thought things through.
+He measured the treasure with great pleasure.
+Hey, welcome back, it's been a while!
+Choose your weapon carefully before the next round.
+The judge urged the jury to reach a fair verdict.
+That was absolutely hilarious, I'm crying.
+We're going to take a quick five minute break.
+Vivid violet flowers grew along the valley floor.
+Who wants to join the next match?
+The kitten chased a shiny ribbon under the couch.
+I appreciate the support more than you know.
+A gentle breeze blew through the open window.
+Wow, that's a lot of bits, thank you!
+Don't forget to drink some water and stretch.
+The shepherd watched over his sheep through the night.
+Is this the right way to the castle?
+Mighty oak trees shaded the quiet garden path.
+Nobody expected the plot twist at the very end.
+Okay chat, here's the plan.
+The chef whisked the eggs and folded in the cheese.
+I'm not sure that's going to work, but let's find out.
+Fresh bread smells wonderful early in the morning.
+Could you repeat that one more time?
+The engineer fixed the broken engine in record time.
+That jump was way harder than it looked.
+Yesterday the weather was warm, but today it's freezing.
+My favorite part of streaming is talking with all of you.
+The zoo keeper fed the giraffes a bundle of leaves.
+Let's see if we can beat our high score.
+Whose jacket is hanging on the back of the chair?
+Rain drummed against the roof all through the night.
+I think we need a better strategy.
+Join the community server for updates and events.
+The violinist played a haunting, beautiful melody.
+Shh, listen, do you hear that noise?
+Unique ideas usually come from unusual places.
+Please welcome our newest moderator to the team.
+The pilot announced a short delay because of the storm.
+Oh no, I completely forgot to save.
+He threw the ball through the hoop with ease.
+Massive waves crashed against the rocky shore.
+Are you ready for the final level?
+The library was hushed except for turning pages.
+I'll read the next question from chat.
+A yellow jacket buzzed around the picnic table.
+We just hit our follower goal, that's amazing!
+Measure twice and cut once, as they always say.
+What's everyone having for dinner tonight?
+The thunder rolled across the distant hills.
+That's a really good question, let me think.
+The journey north took nearly three whole days.
+Clip that, somebody please clip that.
+Fluffy white clouds drifted over the blue lake.
+I wasn't expecting so many people today.
+Quiet streams flow quickly through the green woods.
+Thank you for the raid, everyone, welcome in!
+Her voice echoed through the empty hallway.
+Let's keep going, we're almost there.
+The jeweler examined the ring through a small glass.
+Honestly, I have no idea what I'm doing.
+Hundreds of birds flew south for the winter.
+Remember to be kind to each other in chat.
+The museum displayed ancient coins and pottery.
+This song always puts me in a good mood.
+Usually the bus arrives at a quarter past eight.
+Watch out behind you!
+The puzzle looked simple but took us hours.
+I love seeing all the familiar names in chat.
+Jack quickly packed his bags and left for the airport.
+We're live, can everyone hear me okay?
+A dozen eggs and a gallon of milk, please.
+That's the funniest thing I've seen all week.
+The gymnast landed the routine perfectly.
+Let's do a quick poll about what to play next.
+Smoke rose slowly from the chimney of the cabin.
+Hold on, my game just froze.
+Zero, one, two, three, four, five, six, seven, eight, nine, ten.
+Should I stream earlier on weekends?
+The squirrel buried acorns all around the yard.
+Thanks for hanging out with me today.
+Bold choices sometimes lead to the best outcomes.
+I'll be right back, don't go anywhere.
+Fifty five fierce frogs leapt from the pond.
+The painter mixed blue and yellow to make green.
+That's a new personal record!
+Every morning she jogs around the park twice.
+Wait, what just happened?
+The orchestra tuned their instruments before the show.
+I need a minute to recover from that.
+Thin ice cracked under the weight of the sled.
+Welcome to all the new viewers, glad you're here.
+The cowboy rode his horse across the dusty plain.
+Let me check the settings real quick.
+We gathered around the fire and told stories.
+Nice try, but not quite.
+The scientist recorded every result in her notebook.
+Hype train, here we go!
+Where did you hear about the stream?
+Whistling softly, he walked along the winding road.
+Did anyone else see that glitch?
+The bakery sells cinnamon rolls on Thursdays.
+Good game everyone, that was fun.
+Clear water bubbled up from the hidden spring.
+I'm going to need some backup over here.
+A curious fox peeked out from behind the bushes.
+Okay, that's enough for today.
+Large ships unload cargo at the harbor every day.
+Thank you for the gifted subs, you're too generous!
+The playground was full of laughing children.
+Is it just me, or is it getting hot in here?
+The gardener trimmed the hedges into neat shapes.
+Let's try a different approach this time.
+Snowflakes fell softly on the quiet town.
+I can't stop laughing at that clip.
+Our team won the championship last year.
+Please don't post spoilers in the chat.
+The singer hit an incredibly high note.
+That's a wrap on today's adventure.
+Paper airplanes soared across the classroom.
+Who's been here since the very first stream?
+The detective searched the room for clues.
+Hmm, I wonder what's behind that door.
+Brave knights defended the castle walls.
+Thanks for the tip, that really helps.
+The baby giggled when the puppy licked her hand.
+Can somebody link the schedule in chat?
+Warm soup is perfect on a cold winter evening.
+Let's go, that was clutch!
+The astronaut floated weightlessly in the station.
+I'll answer questions at the end of the stream.
+Jagged mountains towered above the misty valley.
+Should we name the new character after someone in chat?
+The hikers reached the summit just before sunset.
+Oops, wrong button.
+Each pearl was carefully threaded onto the necklace.
+You all are the best community ever.
+The clock struck midnight and the bells began to ring.
+That strategy was genius, nicely done.
+Mashed potatoes and gravy are my weakness.
+Hold on, let me read that again.
+The lighthouse beam swept across the dark sea.
+It's officially time for the giveaway!
+Crisp autumn leaves crunched beneath our boots.
+Turn the volume down if it's too loud.
+The fisherman cast his net into the deep water.
+I genuinely did not see that coming.
+Quick, grab the treasure before the timer runs out!
+The rhythm of the drums filled the entire hall.
+Who wants to pick the next challenge?
+Purple grapes hung heavy on the twisted vine.
+That's something we can work on next time.
+The architect sketched plans for a glass tower.
+Welcome in, make yourself at home.
+Each Thursday we play games with the community.
+Wow, the graphics in this game are stunning.
+The ice cream melted quickly in the hot sun.
+I'll put the link in the description.
+Over the river and through the woods we go.
+Thank you for subscribing, it means a lot.
+The young boy built a sandcastle by the waves.
+Let's take a look at the leaderboard.
+Frozen ponds shimmered under the pale moonlight.
+How long have you been playing this game?
+The bus driver waved as we stepped aboard.
+Alright, alright, I'll try it your way.
+Ten thousand stars glittered in the night sky.
+That reminds me of a funny story.
+Joyful music drifted from the open café.
+Remember, practice makes progress.
+The squeaky wheel finally got some oil.
+Can't wait to see you all next stream.
+Golden sunlight poured through the tall windows.
+I'm so proud of how far this channel has come.
+Huge thanks to everyone who made today special.
+The window was cracked, so the room felt chilly.
+Is there anything you'd like me to try next time?
+She whispered a secret to her best friend.
+Today's stream was brought to you by all of you.
+The tortoise slowly but surely won the race.
+Goodnight everyone, sleep well, and see you soon!
