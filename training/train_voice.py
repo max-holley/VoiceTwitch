@@ -207,6 +207,27 @@ def make_portable_checkpoint(src: Path, dst: Path) -> None:
     tmp.replace(dst)
 
 
+# torch>=2.6 defaults torch.load to weights_only=True, and Lightning passes that
+# explicitly, so the TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD env var does not help. Piper
+# checkpoints hold hparams and pathlib objects that weights-only mode rejects, so
+# run Piper's modules under a launcher that loads with weights_only=False. The
+# checkpoints come from Piper's own release and from our own training runs.
+_LAUNCHER = """import runpy, sys, torch
+_load = torch.load
+def _patched(*a, **k):
+    k['weights_only'] = False
+    return _load(*a, **k)
+torch.load = _patched
+mod = sys.argv[1]
+sys.argv = [mod] + sys.argv[2:]
+runpy.run_module(mod, run_name='__main__', alter_sys=True)
+"""
+
+
+def piper_module_cmd(module: str, *args) -> list:
+    return [sys.executable, "-c", _LAUNCHER, module, *args]
+
+
 def newest_checkpoint(root: Path) -> Path | None:
     ckpts = list(root.rglob("*.ckpt"))
     if not ckpts:
@@ -269,9 +290,7 @@ def cmd_train(args: argparse.Namespace) -> int:
     report("train", "Starting training...", epoch=0, target_epoch=args.epochs, progress=0.0)
     rc = run(
         [
-            sys.executable,
-            "-m",
-            "piper.train",
+            *piper_module_cmd("piper.train"),
             "fit",
             "--data.voice_name", args.name,
             "--data.csv_path", metadata,
@@ -287,10 +306,6 @@ def cmd_train(args: argparse.Namespace) -> int:
         ],
         cwd=work,
         on_line=on_line,
-        # torch>=2.6 defaults torch.load to weights_only=True, which rejects
-        # Lightning checkpoints (hparams, pathlib objects). The base checkpoint
-        # comes from Piper's own release, so full unpickling is acceptable.
-        env_extra={"TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1"},
     )
     if rc != 0:
         return rc
@@ -302,10 +317,7 @@ def cmd_train(args: argparse.Namespace) -> int:
 
     report("export", "Exporting to ONNX...")
     tmp_onnx = work / "export.onnx"
-    rc = run(
-        [sys.executable, "-m", "piper.train.export_onnx", "--checkpoint", ckpt, "--output-file", tmp_onnx],
-        env_extra={"TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1"},
-    )
+    rc = run(piper_module_cmd("piper.train.export_onnx", "--checkpoint", ckpt, "--output-file", tmp_onnx))
     if rc != 0:
         return rc
     if not config_out.exists():
