@@ -147,9 +147,26 @@ def cmd_setup(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # The editable install does not build espeakbridge (needs espeak-ng built from
+    # source). Pull the prebuilt binary and espeak data from the official wheel.
+    pkg_dir = piper_dir / "src" / "piper"
+    if not list(pkg_dir.glob("espeakbridge*.pyd")) and not list(pkg_dir.glob("espeakbridge*.so")):
+        report("setup", "Fetching prebuilt espeak bridge...")
+        wheel_dir = src_root / "piper-wheel"
+        if run([py, "-m", "pip", "download", f"piper-tts=={PIPER_VERSION.lstrip('v')}", "--no-deps",
+                "--only-binary=:all:", "-d", wheel_dir]) != 0:
+            return 1
+        for whl in wheel_dir.glob("*.whl"):
+            with zipfile.ZipFile(whl) as zf:
+                for name in zf.namelist():
+                    if name.startswith("piper/espeak-ng-data/") or name.startswith("piper/espeakbridge."):
+                        zf.extract(name, piper_dir / "src")
+        shutil.rmtree(wheel_dir, ignore_errors=True)
+
     report("setup", "Building monotonic alignment extension...")
     ma_dir = piper_dir / "src" / "piper" / "train" / "vits" / "monotonic_align"
-    if run([py, "-m", "pip", "install", "cython"]) != 0:
+    # torch's ONNX exporter imports onnxscript, which piper's extras don't pull in.
+    if run([py, "-m", "pip", "install", "cython", "onnxscript"]) != 0:
         return 1
     if run([py, "-m", "Cython.Build.Cythonize", "-i", "core.pyx"], cwd=ma_dir) != 0:
         return 1
@@ -179,6 +196,25 @@ def checkpoint_epoch(path: Path) -> int:
 
     ckpt = torch.load(str(path), map_location="cpu", weights_only=False)
     return int(ckpt.get("epoch", 0))
+
+
+def strip_checkpoint_hparams(path: Path) -> None:
+    """Drops legacy hyper_parameters so LightningCLI does not try to parse them.
+
+    The upstream base checkpoint carries old-format hparams (dataset, gpus,
+    resume_from_checkpoint, ...) that the current piper.train CLI rejects with
+    "Parsing of ckpt_path hyperparameters failed!". Weights are unaffected; the
+    model is built from the CLI arguments instead.
+    """
+    import torch  # noqa: PLC0415 (only available inside the venv)
+
+    ckpt = torch.load(str(path), map_location="cpu", weights_only=False)
+    if not ckpt.get("hyper_parameters"):
+        return
+    ckpt["hyper_parameters"] = {}
+    tmp = path.with_suffix(".tmp")
+    torch.save(ckpt, str(tmp))
+    tmp.replace(path)
 
 
 def make_portable_checkpoint(src: Path, dst: Path) -> None:
@@ -218,6 +254,22 @@ def _patched(*a, **k):
     k['weights_only'] = False
     return _load(*a, **k)
 torch.load = _patched
+# Piper adds a ModelCheckpoint monitoring val_mos, which is never logged when the
+# UTMOS predictor is off, and Lightning then aborts the run. Turn it into a no-op.
+from lightning.pytorch.callbacks import ModelCheckpoint
+_init = ModelCheckpoint.__init__
+def _ckpt_init(self, *a, **k):
+    if k.get('monitor') == 'val_mos':
+        k.update(monitor=None, save_top_k=0, save_last=False)
+    _init(self, *a, **k)
+ModelCheckpoint.__init__ = _ckpt_init
+# torch>=2.9 exports through torch.export by default, which cannot trace Piper's
+# spline asserts. Use the TorchScript-based exporter Piper was written against.
+_export = torch.onnx.export
+def _export_legacy(*a, **k):
+    k.setdefault('dynamo', False)
+    return _export(*a, **k)
+torch.onnx.export = _export_legacy
 mod = sys.argv[1]
 sys.argv = [mod] + sys.argv[2:]
 runpy.run_module(mod, run_name='__main__', alter_sys=True)
@@ -265,6 +317,7 @@ def cmd_train(args: argparse.Namespace) -> int:
             base_ckpt = win_ckpt
 
     report("prepare", "Reading base checkpoint...")
+    strip_checkpoint_hparams(base_ckpt)
     start_epoch = checkpoint_epoch(base_ckpt)
     target_epoch = start_epoch + 1 + args.epochs
 
@@ -302,6 +355,7 @@ def cmd_train(args: argparse.Namespace) -> int:
             "--data.batch_size", str(args.batch_size),
             "--ckpt_path", base_ckpt,
             "--trainer.max_epochs", str(target_epoch),
+            "--model.mos_metric", "none",
             "--trainer.default_root_dir", work,
         ],
         cwd=work,
