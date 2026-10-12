@@ -135,9 +135,15 @@ endif()
 add_custom_command(TARGET voicetwitch POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ONNXRUNTIME_RUNTIME_FILES} $<TARGET_FILE_DIR:voicetwitch>
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${ESPEAKNG_DATA_DIR} $<TARGET_FILE_DIR:voicetwitch>/espeak-ng-data
+  VERBATIM)
+
+# Scripts and assets change without the executable relinking, so sync them on
+# every build rather than as a POST_BUILD step.
+add_custom_target(voicetwitch_runtime_files ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/training $<TARGET_FILE_DIR:voicetwitch>/training
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:voicetwitch>/assets
   VERBATIM)
+add_dependencies(voicetwitch_runtime_files voicetwitch)
 
 # ---- tests -----------------------------------------------------------------
 

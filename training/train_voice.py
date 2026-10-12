@@ -46,11 +46,11 @@ def report(stage: str, message: str | None = None, **extra) -> None:
     print("@@VT " + json.dumps(payload), flush=True)
 
 
-def run(cmd: list[str], cwd: Path | None = None, on_line=None) -> int:
+def run(cmd: list[str], cwd: Path | None = None, on_line=None, env_extra: dict | None = None) -> int:
     """Runs a command, streaming output line by line ('\\r' also ends a line so
     progress bars show up)."""
     print("$ " + " ".join(str(c) for c in cmd), flush=True)
-    env = dict(os.environ, PYTHONUNBUFFERED="1")
+    env = dict(os.environ, PYTHONUNBUFFERED="1", **(env_extra or {}))
     proc = subprocess.Popen(
         [str(c) for c in cmd],
         cwd=str(cwd) if cwd else None,
@@ -287,6 +287,10 @@ def cmd_train(args: argparse.Namespace) -> int:
         ],
         cwd=work,
         on_line=on_line,
+        # torch>=2.6 defaults torch.load to weights_only=True, which rejects
+        # Lightning checkpoints (hparams, pathlib objects). The base checkpoint
+        # comes from Piper's own release, so full unpickling is acceptable.
+        env_extra={"TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1"},
     )
     if rc != 0:
         return rc
@@ -298,7 +302,10 @@ def cmd_train(args: argparse.Namespace) -> int:
 
     report("export", "Exporting to ONNX...")
     tmp_onnx = work / "export.onnx"
-    rc = run([sys.executable, "-m", "piper.train.export_onnx", "--checkpoint", ckpt, "--output-file", tmp_onnx])
+    rc = run(
+        [sys.executable, "-m", "piper.train.export_onnx", "--checkpoint", ckpt, "--output-file", tmp_onnx],
+        env_extra={"TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1"},
+    )
     if rc != 0:
         return rc
     if not config_out.exists():
