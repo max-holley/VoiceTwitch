@@ -181,6 +181,32 @@ def checkpoint_epoch(path: Path) -> int:
     return int(ckpt.get("epoch", 0))
 
 
+def make_portable_checkpoint(src: Path, dst: Path) -> None:
+    """Re-saves a checkpoint pickled on Linux so it loads on Windows.
+
+    Upstream checkpoints contain pathlib.PosixPath objects, which cannot be
+    instantiated on Windows; unpickle them as WindowsPath instead.
+    """
+    import pathlib  # noqa: PLC0415
+
+    import torch  # noqa: PLC0415 (only available inside the venv)
+
+    modules = [pathlib]
+    if hasattr(pathlib, "_local"):  # Python 3.13+ pickles as pathlib._local.PosixPath
+        modules.append(pathlib._local)
+    originals = [(m, m.PosixPath) for m in modules]
+    for m in modules:
+        m.PosixPath = pathlib.WindowsPath
+    try:
+        ckpt = torch.load(str(src), map_location="cpu", weights_only=False)
+    finally:
+        for m, orig in originals:
+            m.PosixPath = orig
+    tmp = dst.with_suffix(".tmp")
+    torch.save(ckpt, str(tmp))
+    tmp.replace(dst)
+
+
 def newest_checkpoint(root: Path) -> Path | None:
     ckpts = list(root.rglob("*.ckpt"))
     if not ckpts:
@@ -204,9 +230,18 @@ def cmd_train(args: argparse.Namespace) -> int:
     # Base checkpoint (shared across projects).
     url_hash = hashlib.sha1(args.base_checkpoint_url.encode()).hexdigest()[:12]
     base_ckpt = cache_dir / f"base-{url_hash}.ckpt"
-    if not base_ckpt.exists():
-        report("download", "Downloading base checkpoint (~800 MB, one time)...")
-        download(args.base_checkpoint_url, base_ckpt, "base checkpoint")
+    win_ckpt = cache_dir / f"base-{url_hash}-win.ckpt"
+    if os.name == "nt" and win_ckpt.exists():
+        base_ckpt = win_ckpt
+    else:
+        if not base_ckpt.exists():
+            report("download", "Downloading base checkpoint (~800 MB, one time)...")
+            download(args.base_checkpoint_url, base_ckpt, "base checkpoint")
+        if os.name == "nt":
+            report("prepare", "Converting base checkpoint for Windows (one time)...")
+            make_portable_checkpoint(base_ckpt, win_ckpt)
+            base_ckpt.unlink()
+            base_ckpt = win_ckpt
 
     report("prepare", "Reading base checkpoint...")
     start_epoch = checkpoint_epoch(base_ckpt)
