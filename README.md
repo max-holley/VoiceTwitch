@@ -69,10 +69,41 @@ cmake --preset linux-release && cmake --build --preset linux-release
 ```sh
 brew install ninja
 cmake --preset macos-release && cmake --build --preset macos-release
+open build/macos-release/VoiceTwitch.app
 ```
 
 Tests: `ctest --preset <preset>` (set `VT_TEST_MODEL=/path/voice.onnx` to also
 run an end-to-end synthesis test). Package: `cpack -G ZIP` in the build dir.
+
+### Windows installer
+
+Install NSIS 3.03+ on the build PC, then run from the repository root in
+PowerShell:
+
+```powershell
+.\scripts\build-windows.cmd release
+$cpackPath = (Select-String -Path build/windows-release/CMakeCache.txt -Pattern '^CMAKE_CPACK_COMMAND:').Line.Split('=', 2)[1]
+& $cpackPath --config build/windows-release/CPackConfig.cmake -G NSIS -B build/installer
+```
+
+The resulting `build/installer/VoiceTwitch-<version>-win64.exe` includes the
+Microsoft Visual C++ x64 Redistributable supplied with the build PC's MSVC
+installation. Configuration validates its Microsoft signature and reads its
+version. To supply it separately, configure with
+`-DVT_VC_REDIST=C:/path/to/vc_redist.x64.exe`.
+
+Setup checks both registry views for an installed x64 runtime and skips the
+prerequisite when the same or a newer version is present. Otherwise it installs
+the bundled runtime silently before copying the app, with no download needed
+on the target PC. Setup requires administrator privileges. Runtime errors stop
+setup; a requested reboot is passed to the installer without forcing a restart.
+Uninstalling VoiceTwitch leaves the shared Visual C++ runtime installed.
+The portable ZIP does not install this prerequisite automatically.
+
+The Windows executable includes the app icon for Explorer and the taskbar.
+macOS builds produce `VoiceTwitch.app` with its Dock icon and runtime files
+inside the bundle. For headless commands on macOS, use
+`VoiceTwitch.app/Contents/MacOS/VoiceTwitch`. X11 windows use the same artwork.
 
 Headless synthesis (handy for scripting/benchmarks):
 

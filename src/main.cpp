@@ -23,6 +23,7 @@
 #include "core/Paths.h"
 #include "tts/PiperEngine.h"
 #include "ui/Dashboard.h"
+#include "ui/AppIcon.h"
 #include "ui/Renderer.h"
 
 namespace {
@@ -182,6 +183,7 @@ int main(int argc, char** argv) {
   }
   glfwSetWindowSizeLimits(window, static_cast<int>(820 * windowScale), static_cast<int>(520 * windowScale),
                           GLFW_DONT_CARE, GLFW_DONT_CARE);
+  vt::ui::setAppIcon(window);
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();

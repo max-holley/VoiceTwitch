@@ -105,6 +105,7 @@ endif()
 add_executable(voicetwitch
   src/main.cpp
   src/app/App.cpp
+  src/ui/AppIcon.cpp
   src/ui/Dashboard.cpp
   src/ui/Widgets.cpp
   src/ui/Renderer.cpp
@@ -122,11 +123,31 @@ else()
 endif()
 
 if(WIN32)
+  enable_language(RC)
+  configure_file(cmake/AppIcon.rc.in ${CMAKE_CURRENT_BINARY_DIR}/AppIcon.rc @ONLY)
+  target_sources(voicetwitch PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/AppIcon.rc)
   set_target_properties(voicetwitch PROPERTIES WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
   target_link_options(voicetwitch PRIVATE $<$<NOT:$<CONFIG:Debug>>:/ENTRY:mainCRTStartup>)
 elseif(APPLE)
-  set_target_properties(voicetwitch PROPERTIES INSTALL_RPATH "@executable_path")
+  set_target_properties(voicetwitch PROPERTIES
+    MACOSX_BUNDLE TRUE
+    OUTPUT_NAME VoiceTwitch
+    MACOSX_BUNDLE_BUNDLE_NAME VoiceTwitch
+    MACOSX_BUNDLE_GUI_IDENTIFIER org.voicetwitch.VoiceTwitch
+    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+    MACOSX_BUNDLE_ICON_FILE voicetwitch.icns
+    INSTALL_RPATH "@executable_path")
+  set_source_files_properties(assets/icons/voicetwitch.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  target_sources(voicetwitch PRIVATE assets/icons/voicetwitch.icns)
 else()
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/icons/voicetwitch-64.rgba)
+  file(READ ${CMAKE_CURRENT_SOURCE_DIR}/assets/icons/voicetwitch-64.rgba icon_pixels HEX)
+  string(REGEX REPLACE "(..)" "0x\\1," icon_pixels "${icon_pixels}")
+  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/AppIconPixels.h
+    "// Generated from assets/icons/voicetwitch-64.rgba\nstatic unsigned char appIconPixels[] = {${icon_pixels}};\nstatic_assert(sizeof(appIconPixels) == 64 * 64 * 4);\n")
+  target_include_directories(voicetwitch PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   set_target_properties(voicetwitch PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_RPATH "$ORIGIN")
 endif()
 
@@ -159,14 +180,25 @@ endif()
 
 # ---- install / package -----------------------------------------------------
 
-install(TARGETS voicetwitch RUNTIME DESTINATION .)
-install(FILES ${ONNXRUNTIME_RUNTIME_FILES} DESTINATION .)
-install(DIRECTORY ${ESPEAKNG_DATA_DIR} DESTINATION .)
-install(DIRECTORY training assets DESTINATION .)
+install(TARGETS voicetwitch RUNTIME DESTINATION . BUNDLE DESTINATION .)
+if(NOT APPLE)
+  install(FILES ${ONNXRUNTIME_RUNTIME_FILES} DESTINATION .)
+  install(DIRECTORY ${ESPEAKNG_DATA_DIR} DESTINATION .)
+  install(DIRECTORY training assets DESTINATION .)
+endif()
 install(FILES README.md LICENSE DESTINATION . OPTIONAL)
 
 set(CPACK_PACKAGE_NAME "VoiceTwitch")
 set(CPACK_PACKAGE_VENDOR "VoiceTwitch")
 set(CPACK_GENERATOR "ZIP")
 set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY ON)
+if(WIN32)
+  set(CPACK_GENERATOR "NSIS;ZIP")
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoiceTwitch")
+  set(CPACK_PACKAGE_EXECUTABLES "voicetwitch" "VoiceTwitch")
+  set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+  set(CPACK_NSIS_DISPLAY_NAME "VoiceTwitch")
+  set(CPACK_NSIS_MODIFY_PATH OFF)
+  include(WindowsInstaller)
+endif()
 include(CPack)

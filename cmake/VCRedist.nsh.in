@@ -1,0 +1,50 @@
+; Check both registry views to accommodate runtime registration differences.
+SetRegView 64
+ClearErrors
+ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+IfErrors vt_runtime_check32
+IntCmp $0 1 0 vt_runtime_check32 vt_runtime_check32
+ReadRegStr $1 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Version"
+StrCpy $2 $1 1
+StrCmp $2 "v" 0 +2
+StrCpy $1 $1 "" 1
+${VersionCompare} "$1" "@VT_VC_REDIST_VERSION@" $2
+StrCmp $2 "0" vt_runtime_done
+StrCmp $2 "1" vt_runtime_done
+
+vt_runtime_check32:
+SetRegView 32
+ClearErrors
+ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+IfErrors vt_runtime_install
+IntCmp $0 1 0 vt_runtime_install vt_runtime_install
+ReadRegStr $1 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Version"
+StrCpy $2 $1 1
+StrCmp $2 "v" 0 +2
+StrCpy $1 $1 "" 1
+${VersionCompare} "$1" "@VT_VC_REDIST_VERSION@" $2
+StrCmp $2 "0" vt_runtime_done
+StrCmp $2 "1" vt_runtime_done
+
+vt_runtime_install:
+DetailPrint "Installing Microsoft Visual C++ runtime..."
+InitPluginsDir
+SetOutPath "$PLUGINSDIR"
+File /oname=vc_redist.x64.exe "@VT_VC_REDIST_NSIS@"
+ClearErrors
+ExecWait '"$PLUGINSDIR\vc_redist.x64.exe" /install /quiet /norestart' $0
+IfErrors vt_runtime_failed
+StrCmp $0 "0" vt_runtime_done
+StrCmp $0 "3010" vt_runtime_reboot
+StrCmp $0 "1641" vt_runtime_reboot vt_runtime_failed
+vt_runtime_reboot:
+SetRebootFlag true
+Goto vt_runtime_done
+vt_runtime_failed:
+DetailPrint "Visual C++ runtime installation failed (code $0)."
+MessageBox MB_OK|MB_ICONSTOP "Microsoft Visual C++ runtime installation failed (code $0). VoiceTwitch setup cannot continue. See the Microsoft installer logs in your temporary folder." /SD IDOK
+SetErrorLevel 1
+Abort
+vt_runtime_done:
+SetRegView 64
+SetOutPath "$INSTDIR"
