@@ -29,9 +29,7 @@ void get(const json& j, const char* key, T& out) {
 json AppConfig::toJson() const {
   return json{
       {"twitch",
-       {{"client_id", twitchClientId},
-        {"redirect_port", twitchRedirectPort},
-        {"channel", twitchChannel},
+       {{"channel", twitchChannel},
         {"login", twitchLogin},
         {"auto_connect", autoConnect}}},
       {"voice", {{"active", activeVoice}, {"speaker_id", speakerId}}},
@@ -55,8 +53,6 @@ json AppConfig::toJson() const {
 AppConfig AppConfig::fromJson(const json& j) {
   AppConfig c;
   if (auto t = j.find("twitch"); t != j.end() && t->is_object()) {
-    get(*t, "client_id", c.twitchClientId);
-    get(*t, "redirect_port", c.twitchRedirectPort);
     get(*t, "channel", c.twitchChannel);
     get(*t, "login", c.twitchLogin);
     get(*t, "auto_connect", c.autoConnect);
@@ -85,21 +81,14 @@ AppConfig AppConfig::fromJson(const json& j) {
   c.rate = std::clamp(c.rate, 0.5f, 2.0f);
   c.sentenceSilence = std::clamp(c.sentenceSilence, 0.0f, 2.0f);
   c.maxMessageChars = std::clamp(c.maxMessageChars, 20, 2000);
-  if (c.twitchRedirectPort < 1024 || c.twitchRedirectPort > 65535) c.twitchRedirectPort = 17563;
   return c;
 }
 
 AppConfig AppConfig::load(const std::filesystem::path& path) {
   std::string text;
-  if (!platform::readFile(path, text)) {
-    AppConfig c;
-    c.twitchClientId = VT_DEFAULT_CLIENT_ID;
-    return c;
-  }
+  if (!platform::readFile(path, text)) return AppConfig{};
   try {
-    auto c = fromJson(json::parse(text));
-    if (c.twitchClientId.empty()) c.twitchClientId = VT_DEFAULT_CLIENT_ID;
-    return c;
+    return fromJson(json::parse(text));
   } catch (const std::exception& e) {
     log::warn("config.json is invalid ({}); using defaults", e.what());
     return AppConfig{};

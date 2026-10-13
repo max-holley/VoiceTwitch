@@ -7,12 +7,16 @@
 
 namespace vt {
 
+// Public Twitch application (Client type: Public). The Client ID is not a
+// secret. The redirect URL registered in the Twitch console must be exactly
+// http://localhost:<kTwitchRedirectPort>.
+inline constexpr const char* kTwitchClientId = "f6p1gsui2375swkw82u2aw54v2oz21";
+inline constexpr int kTwitchRedirectPort = 17563;
+
 // Persistent app settings (config.json). The Twitch OAuth token is NOT stored
 // here; see SecureStore.
 struct AppConfig {
   // Twitch
-  std::string twitchClientId;
-  int twitchRedirectPort = 17563;
   std::string twitchChannel;  // channel to read; defaults to the logged-in user
   std::string twitchLogin;    // cached login name of the authorized account
   bool autoConnect = true;

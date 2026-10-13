@@ -82,10 +82,10 @@ voicetwitch --say "Hello chat" --model path/to/voice.onnx [--wav out.wav] [--rat
 
 ## First run
 
-1. **Twitch app**: create an application at <https://dev.twitch.tv/console/apps>
-   (Client type *Public*, OAuth Redirect URL `http://localhost:17563`). Paste
-   its Client ID in *Twitch Connection*, then *Log in with Twitch*. A default
-   Client ID can be baked in at build time with `-DVT_TWITCH_CLIENT_ID=...`.
+1. **Twitch**: open *Twitch Connection* and click *Log in with Twitch*. The app
+   uses a built-in public Client ID (`kTwitchClientId` in `src/core/Config.h`),
+   so users need no setup. Port 17563 must be free during login (it must match
+   the OAuth Redirect URL `http://localhost:17563` registered for the app).
 2. **Voice**: in *Voice Models*, download e.g. `en_US-lessac-medium` and click *Use*.
 3. Chat is read aloud as soon as the channel is joined. Use *Stop reading* to pause.
 
