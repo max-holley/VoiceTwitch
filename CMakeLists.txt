@@ -106,6 +106,7 @@ add_executable(voicetwitch
   src/main.cpp
   src/app/App.cpp
   src/ui/Dashboard.cpp
+  src/ui/Widgets.cpp
   src/ui/Renderer.cpp
   src/ui/CloningView.cpp
   src/ui/FiltersView.cpp

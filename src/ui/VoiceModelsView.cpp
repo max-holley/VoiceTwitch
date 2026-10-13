@@ -52,72 +52,81 @@ void modelCardPopup(App& app) {
     ImGui::BeginChild("cardtext", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), ImGuiChildFlags_Borders);
     ImGui::TextWrapped("%s", text.c_str());
     ImGui::EndChild();
-    if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+    if (primaryButton("Close")) ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
 }
 
 void installedSection(App& app) {
   sectionHeader("Installed voices");
+  beginCard("card_installed");
   auto installed = app.models().installed();
   auto status = app.pipeline().status();
   const std::string& active = app.config().activeVoice;
 
   if (installed.empty()) {
-    ImGui::TextWrapped("No voices installed yet. Download one below - en_US-lessac-medium or "
-                       "en_US-amy-medium are good starting points.");
+    mutedText("No voices installed yet. Download one below - en_US-lessac-medium or "
+             "en_US-amy-medium are good starting points.");
   } else if (ImGui::BeginTable("installed", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH |
                                                    ImGuiTableFlags_SizingStretchProp)) {
     ImGui::TableSetupColumn("Voice", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 5.5f);
     ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 5);
     ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 6);
-    ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 18);
+    ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 19);
     ImGui::TableHeadersRow();
     for (const auto& v : installed) {
       ImGui::PushID(v.id.c_str());
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
       ImGui::TextUnformatted(v.name.c_str());
       ImGui::TableNextColumn();
-      ImGui::TextDisabled(v.cloned ? "Cloned" : "Piper");
+      badge(v.cloned ? "Cloned" : "Piper", v.cloned ? kAccentHover : kTextDim);
       ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
       ImGui::TextDisabled("%s", formatBytes(v.sizeBytes).c_str());
       ImGui::TableNextColumn();
       if (v.id == active) {
-        if (status.voiceState == VoiceState::Loading) ImGui::TextDisabled("Loading...");
-        else if (status.voiceState == VoiceState::Error) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1), "Error");
-        else ImGui::TextColored(ImVec4(0.3f, 0.8f, 0.45f, 1), "Active");
+        if (status.voiceState == VoiceState::Loading) {
+          spinner(ImGui::GetTextLineHeight() * 0.45f, ImGui::GetTextLineHeight() * 0.13f, kAccentHover);
+          ImGui::SameLine();
+          ImGui::TextDisabled("Loading");
+        } else if (status.voiceState == VoiceState::Error) {
+          badge("Error", kBad);
+        } else {
+          badge("Active", kOk);
+        }
       }
       ImGui::TableNextColumn();
       ImGui::BeginDisabled(v.id == active);
-      if (ImGui::SmallButton("Use")) app.setActiveVoice(v.id);
+      if (smallPrimaryButton("Use")) app.setActiveVoice(v.id);
       ImGui::EndDisabled();
       ImGui::SameLine();
-      if (ImGui::SmallButton("Preview")) app.pipeline().preview(g.previewText, v.onnxPath);
+      if (smallButton("Preview")) app.pipeline().preview(g.previewText, v.onnxPath);
       ImGui::SameLine();
-      if (!v.modelCardPath.empty() && ImGui::SmallButton("Model card")) {
+      if (!v.modelCardPath.empty() && smallButton("Model card")) {
         g.cardTitle = v.name;
         g.cardKey.clear();
         platform::readFile(v.modelCardPath, g.cardText);
         g.openCard = true;
       }
       ImGui::SameLine();
-      if (ImGui::SmallButton("Delete")) {
+      if (smallDangerButton("Delete")) {
         g.pendingDelete = v.id;
         ImGui::OpenPopup("Delete voice?");
       }
       if (ImGui::BeginPopupModal("Delete voice?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("Delete %s?", v.name.c_str());
         if (v.cloned) ImGui::TextDisabled("Your recordings are kept; only the trained model is removed.");
-        if (ImGui::Button("Delete")) {
+        if (dangerButton("Delete")) {
           std::string err;
           if (v.id == active) app.setActiveVoice("");
           app.models().remove(v, err);
           ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel")) ImGui::CloseCurrentPopup();
+        if (button("Cancel")) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
       }
       ImGui::PopID();
@@ -126,7 +135,7 @@ void installedSection(App& app) {
   }
 
   if (status.voiceState == VoiceState::Error) {
-    ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1), "Voice failed to load: %s", status.voiceMessage.c_str());
+    ImGui::TextColored(kBad, "Voice failed to load: %s", status.voiceMessage.c_str());
   }
 
   ImGui::Spacing();
@@ -135,8 +144,7 @@ void installedSection(App& app) {
 
   if (status.voiceState == VoiceState::Ready && status.voiceSpeakers > 1) {
     int sid = app.config().speakerId;
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12);
-    if (ImGui::SliderInt("Speaker", &sid, 0, status.voiceSpeakers - 1)) {
+    if (sliderInt("Speaker", &sid, 0, status.voiceSpeakers - 1, "%d", ImGui::GetFontSize() * 18)) {
       app.config().speakerId = sid;
       app.markConfigDirty();
       app.applySettings();
@@ -144,15 +152,17 @@ void installedSection(App& app) {
     helpMarker("This voice has multiple speakers. Pick one, then use Preview to hear it.");
   }
 
-  if (ImGui::Button("Open models folder")) platform::openFolder(paths::modelsDir());
+  if (button("Open models folder")) platform::openFolder(paths::modelsDir());
   ImGui::SameLine();
-  if (ImGui::Button("Rescan")) app.models().refreshInstalled();
+  if (button("Rescan")) app.models().refreshInstalled();
+  endCard();
 }
 
 void catalogSection(App& app) {
   sectionHeader("Available to download");
-  ImGui::TextWrapped("Voices come from the Piper project's public repository (huggingface.co/rhasspy/piper-voices). "
-                     "Each voice has its own license - open its model card before using it.");
+  beginCard("card_catalog");
+  mutedText("Voices come from the Piper project's public repository (huggingface.co/rhasspy/piper-voices). "
+             "Each voice has its own license - open its model card before using it.");
 
   auto catalog = app.models().catalog();
   std::set<std::string> langs;
@@ -171,9 +181,9 @@ void catalogSection(App& app) {
   ImGui::InputTextWithHint("##search", "Search...", &g.search);
   ImGui::SameLine();
   ImGui::BeginDisabled(app.models().catalogLoading());
-  if (ImGui::Button(app.models().catalogLoading() ? "Loading..." : "Refresh list")) app.models().refreshCatalog();
+  if (button(app.models().catalogLoading() ? "Loading..." : "Refresh list")) app.models().refreshCatalog();
   ImGui::EndDisabled();
-  if (auto err = app.models().catalogError(); !err.empty()) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1), "%s", err.c_str());
+  if (auto err = app.models().catalogError(); !err.empty()) ImGui::TextColored(kBad, "%s", err.c_str());
 
   std::map<std::string, DownloadProgress> dl;
   for (auto& d : app.models().downloads()) dl[d.key] = d;
@@ -195,19 +205,23 @@ void catalogSection(App& app) {
       ImGui::PushID(v.key.c_str());
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
       ImGui::TextUnformatted(v.key.c_str());
       if (v.numSpeakers > 1) {
         ImGui::SameLine();
         ImGui::TextDisabled("(%d speakers)", v.numSpeakers);
       }
       ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
       ImGui::TextDisabled("%s (%s)", v.languageName.c_str(), v.countryName.c_str());
       ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
       ImGui::TextUnformatted(v.quality.c_str());
       ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
       ImGui::TextDisabled("%s", formatBytes(v.totalSize()).c_str());
       ImGui::TableNextColumn();
-      if (ImGui::SmallButton("Model card")) {
+      if (smallButton("Model card")) {
         app.models().fetchModelCard(v);
         g.cardTitle = v.key;
         g.cardKey = v.key;
@@ -217,16 +231,16 @@ void catalogSection(App& app) {
       auto it = dl.find(v.key);
       if (it != dl.end() && it->second.active) {
         float frac = it->second.total ? static_cast<float>(it->second.done) / static_cast<float>(it->second.total) : 0.f;
-        ImGui::ProgressBar(frac, ImVec2(ImGui::GetFontSize() * 4, 0));
+        ImGui::ProgressBar(frac, ImVec2(ImGui::GetFontSize() * 4, ImGui::GetFrameHeight() * 0.6f));
         ImGui::SameLine();
-        if (ImGui::SmallButton("x")) app.models().cancelDownload(v.key);
+        if (smallDangerButton("x")) app.models().cancelDownload(v.key);
       } else if (app.models().isInstalled(v.key)) {
-        ImGui::TextDisabled("Installed");
+        badge("Installed", kOk);
       } else {
-        if (ImGui::SmallButton("Download")) app.models().download(v);
+        if (smallPrimaryButton("Download")) app.models().download(v);
         if (it != dl.end() && !it->second.error.empty()) {
           ImGui::SameLine();
-          ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1), "!");
+          ImGui::TextColored(kBad, "!");
           if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", it->second.error.c_str());
         }
       }
@@ -234,13 +248,13 @@ void catalogSection(App& app) {
     }
     ImGui::EndTable();
   }
+  endCard();
 }
 
 }  // namespace
 
 void drawVoiceModelsView(App& app) {
-  ImGui::Text("Voice Models");
-  ImGui::Separator();
+  pageTitle("Voice Models", "Install and switch between text-to-speech voices");
   ImGui::BeginChild("voices_scroll");
   installedSection(app);
   catalogSection(app);

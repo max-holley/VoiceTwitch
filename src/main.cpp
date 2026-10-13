@@ -206,8 +206,9 @@ int main(int argc, char** argv) {
   while (!glfwWindowShouldClose(window)) {
     // 30 fps while something animates or a widget is being edited; otherwise
     // wake once a second at most (background threads post events on change).
+    const bool uiAnimating = vt::ui::animationActive();  // hover fades, page transitions, spinners
     const bool animating = app.wantsFastRefresh() || ImGui::IsAnyItemActive() || io.WantTextInput;
-    const double timeout = extraFrames > 0 ? 0.0 : (animating ? 1.0 / 30.0 : 1.0);
+    const double timeout = extraFrames > 0 ? 0.0 : (uiAnimating ? 1.0 / 60.0 : (animating ? 1.0 / 30.0 : 1.0));
     auto before = std::chrono::steady_clock::now();
     if (timeout > 0.0) {
       glfwWaitEventsTimeout(timeout);

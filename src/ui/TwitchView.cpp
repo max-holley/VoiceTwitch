@@ -31,11 +31,11 @@ void drawTwitchView(App& app) {
   auto& auth = app.auth();
   auto authState = auth.state();
 
-  ImGui::Text("Twitch Connection");
-  ImGui::Separator();
+  pageTitle("Twitch Connection", "Sign in and choose the chat to read");
   ImGui::BeginChild("twitch_scroll");
 
   sectionHeader("Account");
+  beginCard("card_account");
   statusDot(authState == TwitchAuth::State::LoggedIn,
             authState == TwitchAuth::State::WaitingForBrowser || authState == TwitchAuth::State::Validating);
   ImGui::SameLine();
@@ -44,28 +44,34 @@ void drawTwitchView(App& app) {
   } else {
     ImGui::TextUnformatted(authStateText(authState));
   }
+  if (authState == TwitchAuth::State::WaitingForBrowser || authState == TwitchAuth::State::Validating) {
+    ImGui::SameLine();
+    spinner(ImGui::GetTextLineHeight() * 0.45f, ImGui::GetTextLineHeight() * 0.13f, kAccentHover);
+  }
   if (authState == TwitchAuth::State::Error) {
-    ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1), "%s", auth.error().c_str());
+    ImGui::TextColored(kBad, "%s", auth.error().c_str());
   }
 
   if (authState == TwitchAuth::State::LoggedIn) {
-    if (ImGui::Button("Log out")) {
+    if (button("Log out")) {
       app.disconnectChat();
       auth.logout();
     }
   } else if (authState == TwitchAuth::State::WaitingForBrowser) {
-    if (ImGui::Button("Cancel")) auth.cancelLogin();
+    if (button("Cancel")) auth.cancelLogin();
     ImGui::SameLine();
-    if (ImGui::Button("Copy login link")) ImGui::SetClipboardText(auth.authorizeUrl().c_str());
+    if (button("Copy login link")) ImGui::SetClipboardText(auth.authorizeUrl().c_str());
     helpMarker("If the browser didn't open, paste this link into it.");
   } else {
     ImGui::BeginDisabled(authState == TwitchAuth::State::Validating);
-    if (ImGui::Button("Log in with Twitch")) auth.beginLogin(kTwitchClientId, kTwitchRedirectPort);
+    if (primaryButton("Log in with Twitch")) auth.beginLogin(kTwitchClientId, kTwitchRedirectPort);
     ImGui::EndDisabled();
   }
   ImGui::TextDisabled("Scope requested: chat:read (read-only). Token stored in: %s", secure::backendName());
+  endCard();
 
   sectionHeader("Chat");
+  beginCard("card_chat");
   if (!channelInit) {
     channelEdit = cfg.twitchChannel;
     channelInit = true;
@@ -74,7 +80,7 @@ void drawTwitchView(App& app) {
   ImGui::InputTextWithHint("Channel", auth.login().empty() ? "your channel" : auth.login().c_str(), &channelEdit);
   helpMarker("Channel whose chat is read aloud. Leave empty to use your own.");
   ImGui::SameLine();
-  if (ImGui::Button("Apply")) {
+  if (primaryButton("Apply")) {
     cfg.twitchChannel = channelEdit;
     app.markConfigDirty();
     if (app.irc().state() != TwitchIrcClient::State::Disconnected) app.connectChat();
@@ -91,12 +97,13 @@ void drawTwitchView(App& app) {
 
   ImGui::BeginDisabled(authState != TwitchAuth::State::LoggedIn);
   if (ircState == TwitchIrcClient::State::Disconnected || ircState == TwitchIrcClient::State::AuthFailed) {
-    if (ImGui::Button("Connect to chat")) app.connectChat();
+    if (primaryButton("Connect to chat")) app.connectChat();
   } else {
-    if (ImGui::Button("Disconnect")) app.disconnectChat();
+    if (button("Disconnect")) app.disconnectChat();
   }
   ImGui::EndDisabled();
-  if (ImGui::Checkbox("Connect automatically on startup", &cfg.autoConnect)) app.markConfigDirty();
+  if (toggle("Connect automatically on startup", &cfg.autoConnect)) app.markConfigDirty();
+  endCard();
 
   ImGui::EndChild();
 }

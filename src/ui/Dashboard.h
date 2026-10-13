@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+#include "ui/Widgets.h"
+
 namespace vt {
 class App;
 }

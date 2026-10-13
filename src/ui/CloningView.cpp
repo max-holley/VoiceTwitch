@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <optional>
 #include <string>
 
@@ -135,7 +137,7 @@ void projectPicker(App& app) {
   ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12);
   ImGui::InputTextWithHint("##newname", "new-voice-name", &s.newName);
   ImGui::SameLine();
-  if (ImGui::Button("Create")) {
+  if (primaryButton("Create")) {
     std::string err;
     auto prompts = loadRecordingScript(paths::assetsDir() / "recording_script.txt");
     auto p = CloneProject::create(s.newName, prompts, err);
@@ -157,16 +159,26 @@ void recordingPanel(App& app) {
   const double secs = proj.recordedSeconds();
 
   sectionHeader("1. Record your voice");
+  beginCard("card_record");
   char overlay[96];
   std::snprintf(overlay, sizeof(overlay), "%zu / %zu prompts  (%d:%02d of audio)", done, total,
                 static_cast<int>(secs) / 60, static_cast<int>(secs) % 60);
   ImGui::ProgressBar(total ? static_cast<float>(done) / static_cast<float>(total) : 0.f, ImVec2(-1, 0), overlay);
-  ImGui::TextDisabled("Quiet room, consistent mic distance, natural delivery. At least %zu takes to train; "
-                      "%zu+ (about 15 minutes) gives noticeably better results.",
-                      kMinRecordings, kRecommendedRecordings);
+  mutedText("Quiet room, consistent mic distance, natural delivery. At least %zu takes to train; "
+            "%zu+ (about 15 minutes) gives noticeably better results.",
+            kMinRecordings, kRecommendedRecordings);
 
-  ImGui::BeginChild("prompt", ImVec2(0, ImGui::GetFontSize() * 6.5f), ImGuiChildFlags_Borders);
-  ImGui::TextDisabled("Prompt %zu of %zu%s", s.index + 1, total, proj.hasRecording(s.index) ? "  (recorded)" : "");
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.075f, 0.075f, 0.094f, 1.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ImGui::GetFontSize() * 1.2f, ImGui::GetFontSize() * 0.9f));
+  ImGui::BeginChild("prompt", ImVec2(0, ImGui::GetFontSize() * 7.0f),
+                    ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
+  ImGui::PopStyleVar();
+  ImGui::PopStyleColor();
+  ImGui::TextDisabled("Prompt %zu of %zu", s.index + 1, total);
+  if (proj.hasRecording(s.index)) {
+    ImGui::SameLine();
+    badge("Recorded", kOk);
+  }
   ImGui::SetWindowFontScale(1.45f);
   ImGui::TextWrapped("%s", proj.prompts()[s.index].c_str());
   ImGui::SetWindowFontScale(1.0f);
@@ -174,28 +186,26 @@ void recordingPanel(App& app) {
 
   const bool recording = app.recorder().isRecording();
   ImGui::BeginDisabled(recording);
-  if (ImGui::Button("< Prev") && s.index > 0) --s.index;
+  if (button("< Prev") && s.index > 0) --s.index;
   ImGui::SameLine();
-  if (ImGui::Button("Next >") && s.index + 1 < total) ++s.index;
+  if (button("Next >") && s.index + 1 < total) ++s.index;
   ImGui::SameLine();
-  if (ImGui::Button("Next unrecorded")) nextUnrecorded();
+  if (button("Next unrecorded")) nextUnrecorded();
   ImGui::EndDisabled();
   ImGui::SameLine(0, 30);
 
   if (!recording) {
-    if (ImGui::Button(proj.hasRecording(s.index) ? "Re-record (Space)" : "Record (Space)")) startRecording(app);
+    if (primaryButton(proj.hasRecording(s.index) ? "Re-record (Space)" : "Record (Space)")) startRecording(app);
   } else {
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.15f, 0.15f, 1.0f));
-    if (ImGui::Button("Stop & save (Space)")) stopRecording(app, true);
-    ImGui::PopStyleColor();
+    if (dangerButton("Stop & save (Space)")) stopRecording(app, true);
     ImGui::SameLine();
-    if (ImGui::Button("Discard (Esc)")) stopRecording(app, false);
+    if (button("Discard (Esc)")) stopRecording(app, false);
   }
   if (!recording && proj.hasRecording(s.index)) {
     ImGui::SameLine();
-    if (ImGui::Button("Play take")) playTake(s.index);
+    if (button("Play take")) playTake(s.index);
     ImGui::SameLine();
-    if (ImGui::Button("Delete take")) proj.deleteRecording(s.index);
+    if (dangerButton("Delete take")) proj.deleteRecording(s.index);
   }
 
   // Keyboard shortcuts while no text field has focus.
@@ -216,12 +226,13 @@ void recordingPanel(App& app) {
   char lvl[48];
   std::snprintf(lvl, sizeof(lvl), recording ? "Recording %.1fs" : "Mic idle", app.recorder().secondsRecorded());
   ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-                        level > 0.98f ? ImVec4(0.9f, 0.3f, 0.3f, 1) : ImVec4(0.3f, 0.8f, 0.45f, 1));
+                        level > 0.98f ? kBad : kOk);
   ImGui::ProgressBar(level, ImVec2(-1, ImGui::GetFontSize() * 0.9f), lvl);
   ImGui::PopStyleColor();
 
-  if (!s.lastSaveNote.empty()) ImGui::TextDisabled("%s", s.lastSaveNote.c_str());
-  if (ImGui::Button("Open project folder")) platform::openFolder(proj.dir());
+  if (!s.lastSaveNote.empty()) mutedText("%s", s.lastSaveNote.c_str());
+  if (button("Open project folder")) platform::openFolder(proj.dir());
+  endCard();
 }
 
 void trainingPanel(App& app) {
@@ -234,7 +245,8 @@ void trainingPanel(App& app) {
   auto& cfg = app.config();
 
   sectionHeader("2. Train the voice");
-  ImGui::TextWrapped(
+  beginCard("card_train");
+  mutedText("%s",
       "Training fine-tunes a Piper base voice on your recordings using Piper's Python training tools. It runs "
       "outside the app, needs Python 3.9+ and several GB of disk, and takes hours - an NVIDIA GPU is strongly "
       "recommended. It is a one-off task; streaming never depends on it.");
@@ -244,7 +256,7 @@ void trainingPanel(App& app) {
                       cfg.trainingEpochs, cfg.trainingBatchSize, cfg.cloneEspeakVoice.c_str());
 
   ImGui::BeginDisabled(running || done < kMinRecordings || app.recorder().isRecording());
-  if (ImGui::Button("Start training")) {
+  if (primaryButton("Start training")) {
     std::string err;
     if (proj.writeMetadata(err) == 0) {
       s.error = err.empty() ? "No recordings" : err;
@@ -269,45 +281,79 @@ void trainingPanel(App& app) {
   }
   if (running) {
     ImGui::SameLine();
-    if (ImGui::Button("Cancel training")) tr.cancel();
+    if (dangerButton("Cancel training")) tr.cancel();
   }
 
   if (status.stage != TrainingRunner::Stage::Idle && status.project == proj.name()) {
-    ImGui::Text("%s", TrainingRunner::stageName(status.stage));
-    if (!status.message.empty()) {
+    using Stage = TrainingRunner::Stage;
+    ImGui::Spacing();
+    const float lh = ImGui::GetTextLineHeight();
+    if (running) {
+      // Spinner + stage while any phase is in progress.
+      spinner(lh * 0.8f, lh * 0.2f, kAccentHover);
       ImGui::SameLine();
-      ImGui::TextDisabled("- %s", status.message.c_str());
+      ImGui::BeginGroup();
+      ImGui::TextUnformatted(TrainingRunner::stageName(status.stage));
+      if (!status.message.empty()) mutedText("%s", status.message.c_str());
+      ImGui::EndGroup();
+    } else {
+      const bool ok = status.stage == Stage::Done;
+      const bool bad = status.stage == Stage::Failed;
+      badge(TrainingRunner::stageName(status.stage), ok ? kOk : (bad ? kBad : kWarn));
+      if (!status.message.empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", status.message.c_str());
+      }
     }
-    if (status.stage == TrainingRunner::Stage::Training && status.targetEpoch > 0) {
-      char ov[64];
-      std::snprintf(ov, sizeof(ov), "epoch %d / %d", status.epoch, status.targetEpoch);
-      ImGui::ProgressBar(status.progress >= 0 ? status.progress : 0.0f, ImVec2(-1, 0), ov);
-    } else if (running) {
-      ImGui::ProgressBar(-1.0f * static_cast<float>(ImGui::GetTime()), ImVec2(-1, 0), "working...");
+    if (running) {
+      if (status.stage == Stage::Training && status.targetEpoch > 0) {
+        char ov[64];
+        std::snprintf(ov, sizeof(ov), "epoch %d / %d", status.epoch, status.targetEpoch);
+        ImGui::ProgressBar(status.progress >= 0 ? status.progress : 0.0f, ImVec2(-1, ImGui::GetFrameHeight() * 0.8f), ov);
+      } else {
+        // Indeterminate: a highlight sweeps back and forth.
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        const float w = ImGui::GetContentRegionAvail().x;
+        const float h = lh * 0.55f;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), ImGui::GetColorU32(ImGuiCol_FrameBg), h * 0.5f);
+        const float t = static_cast<float>(std::fmod(ImGui::GetTime() * 0.9, 2.0));
+        const float pos = t < 1.0f ? t : 2.0f - t;
+        const float segW = w * 0.28f;
+        const float x0 = p.x + pos * (w - segW);
+        dl->AddRectFilled(ImVec2(x0, p.y), ImVec2(x0 + segW, p.y + h), ImGui::GetColorU32(kAccent), h * 0.5f);
+        ImGui::Dummy(ImVec2(w, h));
+        requestFrames();
+      }
     }
     if (ImGui::TreeNode("Training output")) {
       auto tail = tr.outputTail();
+      ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.055f, 0.055f, 0.07f, 1.0f));
       ImGui::BeginChild("trainlog", ImVec2(0, ImGui::GetFontSize() * 14), ImGuiChildFlags_Borders,
                         ImGuiWindowFlags_HorizontalScrollbar);
+      ImGui::PopStyleColor();
       for (const auto& l : tail) ImGui::TextUnformatted(l.c_str());
       if (running) ImGui::SetScrollHereY(1.0f);
       ImGui::EndChild();
       ImGui::TreePop();
     }
   }
+  endCard();
 
   if (proj.hasModel()) {
     sectionHeader("3. Use it");
+    beginCard("card_use");
     auto id = ModelManager::voiceIdFor(proj.modelPath());
     bool active = cfg.activeVoice == id;
     ImGui::BeginDisabled(active);
-    if (ImGui::Button(active ? "Active voice" : "Use this voice")) {
+    if (primaryButton(active ? "Active voice" : "Use this voice")) {
       app.models().refreshInstalled();
       app.setActiveVoice(id);
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button("Preview")) app.pipeline().preview("Hey chat, this is my own voice now. Pretty cool, right?", proj.modelPath());
+    if (button("Preview")) app.pipeline().preview("Hey chat, this is my own voice now. Pretty cool, right?", proj.modelPath());
+    endCard();
   }
 }
 
@@ -315,15 +361,16 @@ void trainingPanel(App& app) {
 
 void drawCloningView(App& app) {
   auto& s = st();
-  ImGui::Text("Voice Cloning");
-  ImGui::Separator();
+  pageTitle("Voice Cloning", "Record yourself, then train a Piper voice that sounds like you");
   ImGui::BeginChild("clone_scroll");
+  beginCard("card_project");
   projectPicker(app);
-  if (!s.error.empty()) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1), "%s", s.error.c_str());
+  if (!s.error.empty()) ImGui::TextColored(kBad, "%s", s.error.c_str());
+  endCard();
 
   if (!s.project) {
     ImGui::Spacing();
-    ImGui::TextWrapped(
+    mutedText(
         "Create a project to record your own voice. You'll read a scripted list of short sentences that covers "
         "the sounds of English; the recordings are cleaned up (silence trimmed, normalized, resampled to "
         "22.05 kHz) and then used to fine-tune a Piper voice.");
