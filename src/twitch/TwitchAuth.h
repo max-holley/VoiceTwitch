@@ -19,8 +19,8 @@ struct TokenInfo {
 
 // Twitch OAuth 2.0 (implicit grant) with a localhost redirect.
 //
-// The user registers a Twitch application with redirect URL
-// http://localhost:<port> and enters its Client ID. Login opens the browser at
+// Uses the app's built-in public Client ID (kTwitchClientId, redirect URL
+// http://localhost:<kTwitchRedirectPort>). Login opens the browser at
 // id.twitch.tv; Twitch redirects back to the loopback server, whose page hands
 // the token (from the URL fragment) to the app. Only `chat:read` is requested.
 // Tokens are kept in the OS credential store and validated hourly, as Twitch

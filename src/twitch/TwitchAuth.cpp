@@ -134,7 +134,7 @@ std::optional<TokenInfo> TwitchAuth::validate(const std::string& token, std::str
 
 void TwitchAuth::beginLogin(const std::string& clientId, int port) {
   if (clientId.empty()) {
-    setError("Enter your Twitch application's Client ID first");
+    setError("No Twitch Client ID configured");
     return;
   }
   cancel_ = true;

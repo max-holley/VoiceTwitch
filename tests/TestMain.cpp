@@ -213,14 +213,12 @@ TEST(voice_config_parse) {
 
 TEST(config_roundtrip) {
   AppConfig a;
-  a.twitchClientId = "abc";
   a.twitchChannel = "somechannel";
   a.activeVoice = "models/x/x.onnx";
   a.volume = 0.3f;
   a.rate = 1.5f;
   a.announceUsername = false;
   auto b = AppConfig::fromJson(a.toJson());
-  CHECK_EQ(b.twitchClientId, "abc");
   CHECK_EQ(b.twitchChannel, "somechannel");
   CHECK_EQ(b.activeVoice, "models/x/x.onnx");
   CHECK(std::fabs(b.volume - 0.3f) < 1e-6f);

@@ -11,7 +11,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(VT_BUILD_TESTS "Build unit tests" ON)
-set(VT_TWITCH_CLIENT_ID "" CACHE STRING "Default Twitch application Client ID baked into the build (optional; can be set in the app)")
 
 if(MSVC)
   add_compile_options(/utf-8 /W4 /permissive- /Zc:__cplusplus)
@@ -79,8 +78,7 @@ add_library(voicetwitch_core STATIC
 add_dependencies(voicetwitch_core espeak_ng_external)
 target_include_directories(voicetwitch_core PUBLIC src ${MINIAUDIO_INCLUDE_DIR})
 target_compile_definitions(voicetwitch_core PUBLIC
-  VT_VERSION="${PROJECT_VERSION}"
-  VT_DEFAULT_CLIENT_ID="${VT_TWITCH_CLIENT_ID}")
+  VT_VERSION="${PROJECT_VERSION}")
 target_link_libraries(voicetwitch_core PUBLIC
   nlohmann_json::nlohmann_json
   CURL::libcurl
