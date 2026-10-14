@@ -13,11 +13,10 @@ own recordings so chat is read in your voice.
 
 ## Install on Windows
 
-The ready-built installer in this checkout is
-[VoiceTwitch-0.1.0-win64.exe](build/installer/VoiceTwitch-0.1.0-win64.exe).
-This link works locally when the installer is present; the EXE has not yet been
-published to a [GitHub release](https://github.com/max-holley/VoiceTwitch/releases)
-for public download.
+Download the ready-built
+[Windows x64 installer](https://github.com/max-holley/VoiceTwitch/releases/download/v0.1.0/VoiceTwitch-0.1.0-win64.exe)
+from [GitHub Releases](https://github.com/max-holley/VoiceTwitch/releases/tag/v0.1.0).
+You do not need to clone this repository or build the app yourself.
 
 Copy just the installer EXE to a Windows x64 PC and run it with administrator
 permission. It includes the app, its supporting files, and the Visual C++
