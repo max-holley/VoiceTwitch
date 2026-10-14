@@ -11,6 +11,20 @@ own recordings so chat is read in your voice.
 - Twitch OAuth (implicit grant, `chat:read` only) + IRC over WebSocket via libcurl
 - miniaudio for playback and microphone capture
 
+## Install on Windows
+
+The ready-built installer in this checkout is
+[VoiceTwitch-0.1.0-win64.exe](build/installer/VoiceTwitch-0.1.0-win64.exe).
+This link works locally when the installer is present; the EXE has not yet been
+published to a [GitHub release](https://github.com/max-holley/VoiceTwitch/releases)
+for public download.
+
+Copy just the installer EXE to a Windows x64 PC and run it with administrator
+permission. It includes the app, its supporting files, and the Visual C++
+runtime, which setup installs only when needed. After installation, download
+a voice from **Voice Models** and connect your Twitch account. Python is only
+required for voice cloning.
+
 ## Features (v1)
 
 | Screen | What it does |
