@@ -45,7 +45,7 @@ jobs:
             preset: macos-release
     runs-on: ${{ matrix.os }}
     env:
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VT_VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
     steps:
@@ -62,7 +62,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build pkg-config autoconf automake libtool \
+          sudo apt-get install -y ninja-build pkg-config autoconf autoconf-archive automake libtool \
             libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev \
             libgl1-mesa-dev libsecret-1-dev libasound2-dev libpulse-dev
 
@@ -77,6 +77,9 @@ jobs:
       - name: Bootstrap vcpkg
         shell: bash
         run: |
+          # MSVC setup overwrites VCPKG_ROOT with Visual Studio's bundled copy.
+          export VCPKG_ROOT="$VT_VCPKG_ROOT"
+          echo "VCPKG_ROOT=$VCPKG_ROOT" >> "$GITHUB_ENV"
           git clone https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
           if [ "$RUNNER_OS" = "Windows" ]; then "$VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics; else "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics; fi
 

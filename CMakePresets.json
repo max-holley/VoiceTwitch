@@ -42,7 +42,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.3",
         "VCPKG_TARGET_TRIPLET": "arm64-osx"
       }
     }
