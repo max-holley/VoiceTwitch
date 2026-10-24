@@ -6,3 +6,6 @@ vcpkg_installed/
 *.user
 CMakeUserPresets.json
 __pycache__/
+
+training-runtime/
+training-runtime.tar

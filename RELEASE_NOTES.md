@@ -5,6 +5,17 @@ VoiceTwitch v0.1.1 fixes Python detection and misleading dependency-install erro
 - Repair an incompatible environment left behind by a failed setup without removing voice recordings or cached checkpoints.
 - Show the selected Python interpreter and preserve pip's actual error instead of reporting all failures as missing C++ build tools.
 
-**Windows:** download `VoiceTwitch-0.1.1-win64.exe` and install the update. Install standard **64-bit Python 3.12** from python.org separately for voice training. Leave the Python executable blank in Settings > Voice cloning, or select that installation's `python.exe`, then retry Start training. Visual Studio Build Tools with **Desktop development with C++** is still required for Piper's native training extension.
+**Windows:** the new installer includes a private Python/Piper/PyTorch CPU training
+runtime and precompiled extensions. Users no longer need to install Python,
+pip, CMake or Visual Studio Build Tools. Leave the Python executable blank in
+Settings > Voice cloning to use the bundled runtime. System Python is untouched.
 
-This update targets training environment setup. Full voice training on individual PCs and GPU configurations still requires testing. The release workflow checks real Windows Python 3.12 dependency installation and training imports, and builds/tests the desktop application on Windows, Linux and macOS before publishing.
+CPU training can take many hours. NVIDIA acceleration requires a separate
+external Python setup, with CUDA PyTorch installed into the generated training
+environment. The base voice checkpoint
+(~800 MB) is still downloaded on first training use. The larger installer now
+contains the training dependencies as well as the app and Visual C++ runtime.
+
+The release workflow must validate the relocated runtime, build/test the app,
+and run the installed Windows payload's training smoke check before publishing.
+Full voice training on individual PCs and GPU configurations still requires testing.

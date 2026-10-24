@@ -28,7 +28,7 @@ struct TrainingRequest {
 // Runs the out-of-process fine-tuning workflow (Piper's training tooling is
 // Python/PyTorch). Inference stays native; this only runs on demand.
 //
-//   1. find a 64-bit CPython 3.11-3.13 interpreter
+//   1. use the bundled Windows runtime, or find 64-bit CPython 3.11-3.13
 //   2. create <data>/training-env venv + install piper1-gpl[train] (first run)
 //   3. training/train_voice.py train  -> fine-tune from a base checkpoint
 //   4. export to ONNX + config next to the project
@@ -58,6 +58,8 @@ class TrainingRunner {
 
   static std::filesystem::path venvPython();
   static bool environmentReady();
+  static bool bundledEnvironmentReady();
+  static std::filesystem::path bundledPython();
   static const char* stageName(Stage s);
 
   void setOnChange(std::function<void()> fn) { onChange_ = std::move(fn); }

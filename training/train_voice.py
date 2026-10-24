@@ -27,6 +27,7 @@ import os
 import platform
 import struct
 import sysconfig
+import tempfile
 import re
 import shutil
 import subprocess
@@ -135,6 +136,36 @@ def cmd_check_python(args: argparse.Namespace | None = None) -> int:
         )
         return 1
     print(f"Training Python: {sys.executable} ({platform.python_version()}, 64-bit)", flush=True)
+    return 0
+
+
+def cmd_check_runtime(args: argparse.Namespace | None = None) -> int:
+    """Exercise the installed training runtime without downloads or a checkpoint."""
+    if cmd_check_python():
+        return 1
+    import torch
+    import onnxruntime
+    import onnxscript
+    from piper.phonemize_espeak import EspeakPhonemizer
+    from piper.train.vits.monotonic_align import maximum_path
+    from piper.train.__main__ import VitsLightningCLI
+    from piper.train import export_onnx
+
+    assert torch.ones(2).sum().item() == 2
+    assert list(EspeakPhonemizer().phonemize("en-us", "Runtime test"))
+    aligned = maximum_path(torch.zeros(1, 2, 2), torch.ones(1, 2, 2))
+    assert aligned.sum().item() == 2
+    # Exercise the same legacy exporter used for trained voices and load its
+    # output with ONNX Runtime, rather than checking Python imports alone.
+    with tempfile.TemporaryDirectory(prefix="vt-smoke-") as temp:
+        model = Path(temp) / "test.onnx"
+        torch.onnx.export(torch.nn.Identity(), torch.ones(1, 2), str(model),
+                          input_names=["input"], output_names=["output"], dynamo=False)
+        session = onnxruntime.InferenceSession(str(model), providers=["CPUExecutionProvider"])
+        assert session.run(None, {"input": torch.ones(1, 2).numpy()})[0].shape == (1, 2)
+    if run(piper_module_cmd("piper.train", "--help")) != 0:
+        return 1
+    print(f"Training runtime OK: torch {torch.__version__}, ONNX Runtime {onnxruntime.__version__}", flush=True)
     return 0
 
 
@@ -434,6 +465,9 @@ def main() -> int:
 
     p_check = sub.add_parser("check-python", help="check training interpreter compatibility")
     p_check.set_defaults(func=cmd_check_python)
+
+    p_runtime = sub.add_parser("check-runtime", help="validate vendored training dependencies")
+    p_runtime.set_defaults(func=cmd_check_runtime)
 
     p_setup = sub.add_parser("setup", help="create the training environment")
     p_setup.add_argument("--venv", required=True)

@@ -46,9 +46,24 @@ fs::path TrainingRunner::venvPython() {
 #endif
 }
 
+fs::path TrainingRunner::bundledPython() {
+  return paths::executableDir() / "training-runtime" / "python.exe";
+}
+
+bool TrainingRunner::bundledEnvironmentReady() {
+#ifdef _WIN32
+  std::error_code ec;
+  return fs::exists(bundledPython(), ec) &&
+         fs::exists(bundledPython().parent_path() / ".voicetwitch-ready", ec);
+#else
+  return false;
+#endif
+}
+
 bool TrainingRunner::environmentReady() {
   std::error_code ec;
-  return fs::exists(venvPython(), ec) && fs::exists(paths::trainingEnvDir() / ".voicetwitch-ready", ec);
+  return bundledEnvironmentReady() ||
+         (fs::exists(venvPython(), ec) && fs::exists(paths::trainingEnvDir() / ".voicetwitch-ready", ec));
 }
 
 void TrainingRunner::notify() {
@@ -207,7 +222,14 @@ void TrainingRunner::run(TrainingRequest req) {
     return;
   }
 
-  if (!environmentReady()) {
+  const bool useBundled = req.pythonPath.empty() && bundledEnvironmentReady();
+  const fs::path trainingPython = useBundled ? bundledPython() : venvPython();
+  if (useBundled) {
+    onLine("Using the bundled Python/Piper CPU training runtime (no separate Python or compiler required).");
+  }
+  const bool localReady = fs::exists(venvPython(), ec) &&
+                          fs::exists(paths::trainingEnvDir() / ".voicetwitch-ready", ec);
+  if (!useBundled && !localReady) {
     setStage(Stage::FindingPython, "Looking for 64-bit CPython 3.11-3.13...");
     fs::path python;
     std::vector<std::string> prefix;
@@ -248,7 +270,7 @@ void TrainingRunner::run(TrainingRequest req) {
                                 std::to_string(req.epochs),
                                 "--batch-size",
                                 std::to_string(req.batchSize)};
-  if (!runStep(venvPython(), args, Stage::Training)) {
+  if (!runStep(trainingPython, args, Stage::Training)) {
     if (cancel_) finish(Stage::Cancelled, "Cancelled");
     else running_ = false, notify();
     return;

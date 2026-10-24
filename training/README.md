@@ -4,6 +4,28 @@ VoiceTwitch's inference is pure C++ (onnxruntime + espeak-ng). Producing a *new*
 voice, however, means fine-tuning a Piper VITS model, and Piper's training code
 is Python/PyTorch. `train_voice.py` wraps that so the app can drive it.
 
+## Windows installer
+
+From v0.1.1, Windows release packages include a private Python runtime, CPU
+PyTorch, Piper, training dependencies and precompiled native extensions. Leave
+**Python executable** blank in Settings to use it. Users need no separate Python,
+compiler or pip setup. The runtime is isolated from system Python and installed
+packages. Setup is performed on the release build machine, not the user's PC.
+
+CPU training can take many hours. The base checkpoint is still downloaded on
+first use; it is model data rather than an installer dependency. NVIDIA drivers
+and CUDA PyTorch are not bundled. For advanced CUDA setup, select a separate
+Python executable, let setup create `<data>/training-env`, then install CUDA
+PyTorch into that generated environment before training.
+
+The bundle and installer still need a successful Windows CI run before v0.1.1
+can be published; the already published v0.1.0 installer does not include them.
+
+## Source builds / explicit Python override
+
+The following setup path is used when no bundled runtime is present, or a
+Python executable is explicitly configured in Settings.
+
 ## What the app does
 
 1. **Record** – the Voice Cloning screen walks through `assets/recording_script.txt`.
@@ -24,7 +46,7 @@ is Python/PyTorch. `train_voice.py` wraps that so the app can drive it.
    its config to `cloned-voices/<name>/<name>.onnx(.json)`, where Voice Models
    picks it up as a "Cloned" voice.
 
-## Requirements
+## Requirements for building the runtime or using external Python
 
 * Standard 64-bit CPython 3.11–3.13 (3.12 recommended) installed separately (not bundled).
 * A C/C++ compiler + CMake for Piper's native extension
@@ -47,7 +69,7 @@ python3 train_voice.py setup --venv ~/.local/share/VoiceTwitch/training-env
 Training on a GPU box and copying the resulting `.onnx` + `.onnx.json` into a
 folder under `cloned-voices/` works too.
 
-## If setup previously failed
+## If external-Python setup previously failed
 
 Install **standard 64-bit Python 3.12** from python.org. In VoiceTwitch, leave the
 Python executable blank to auto-detect it, or select its `python.exe` in Settings
@@ -62,3 +84,20 @@ is not a C++ compiler error. The training output now includes the selected Pytho
 path and retains pip's actual error. If it persists with standard x64 Python
 3.12, check pip's index/proxy/network settings. Native alignment compilation
 still requires the C++ build tools listed above.
+
+## Building the distributable runtime
+
+On a Windows x64 release builder with Python 3.13 and C++ Build Tools, run:
+
+```powershell
+python scripts/bundle-training-runtime.py --output training-runtime
+```
+
+The builder vendors dependencies alongside the official embedded CPython
+3.13.17 distribution. It replaces Piper's editable install with copied package
+code/native modules and preserves dependency licenses. It then tests the moved
+runtime with poisoned `PYTHONHOME`/`PYTHONPATH` and without Python/compiler tools
+on PATH: CPU tensor computation, phonemization, native alignment, ONNX export,
+ONNX Runtime inference and training CLI loading. A readiness marker is written
+only on success. CMake refuses to package a missing/incomplete bundle by default.
+The workflow repeats this check on the payload installed by the actual NSIS EXE.

@@ -11,6 +11,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(VT_BUILD_TESTS "Build unit tests" ON)
+option(VT_BUNDLE_TRAINING "Bundle a private prebuilt Windows voice-training runtime" ${WIN32})
+set(VT_TRAINING_RUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/training-runtime" CACHE PATH
+    "Prebuilt runtime produced by scripts/bundle-training-runtime.py")
+if(WIN32 AND VT_BUNDLE_TRAINING)
+  if(NOT EXISTS "${VT_TRAINING_RUNTIME_DIR}/python.exe" OR
+     NOT EXISTS "${VT_TRAINING_RUNTIME_DIR}/.voicetwitch-ready")
+    message(FATAL_ERROR "Build the training runtime with scripts/bundle-training-runtime.py --output training-runtime first, or use -DVT_BUNDLE_TRAINING=OFF for a development build.")
+  endif()
+endif()
 
 if(MSVC)
   add_compile_options(/utf-8 /W4 /permissive- /Zc:__cplusplus)
@@ -180,6 +189,9 @@ endif()
 
 # ---- install / package -----------------------------------------------------
 
+if(WIN32 AND VT_BUNDLE_TRAINING)
+  install(DIRECTORY "${VT_TRAINING_RUNTIME_DIR}/" DESTINATION training-runtime)
+endif()
 install(TARGETS voicetwitch RUNTIME DESTINATION . BUNDLE DESTINATION .)
 if(NOT APPLE)
   install(FILES ${ONNXRUNTIME_RUNTIME_FILES} DESTINATION .)
@@ -199,6 +211,7 @@ if(WIN32)
   set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
   set(CPACK_NSIS_DISPLAY_NAME "VoiceTwitch")
   set(CPACK_NSIS_MODIFY_PATH OFF)
+  set(CPACK_NSIS_COMPRESSOR "/SOLID lzma")
   include(WindowsInstaller)
 endif()
 include(CPack)

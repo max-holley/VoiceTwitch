@@ -2,7 +2,7 @@
 
 Lightweight native desktop app that reads Twitch chat aloud with local, offline
 [Piper](https://github.com/OHF-Voice/piper1-gpl) text-to-speech. No cloud TTS,
-no Electron, no Python at runtime. It can also fine-tune a Piper voice on your
+no Electron, no Python for speech playback. It can also fine-tune a Piper voice on your
 own recordings so chat is read in your voice.
 
 - C++20, CMake, vcpkg
@@ -21,8 +21,12 @@ You do not need to clone this repository or build the app yourself.
 Copy just the installer EXE to a Windows x64 PC and run it with administrator
 permission. It includes the app, its supporting files, and the Visual C++
 runtime, which setup installs only when needed. After installation, download
-a voice from **Voice Models** and connect your Twitch account. Python is only
-required for voice cloning.
+a voice from **Voice Models** and connect your Twitch account.
+
+The upcoming v0.1.1 installer bundles a private Python/Piper/PyTorch CPU training
+runtime and compiled extensions. No separate Python or Build Tools installation
+will be needed. The v0.1.0 download above does **not** include this runtime;
+v0.1.1 must pass the Windows build and installer checks before release.
 
 ## Features (v1)
 
@@ -155,10 +159,33 @@ unavailable at build time it falls back to a `0600` file and logs a warning).
 
 Inference is pure C++, but Piper's training tools are Python/PyTorch, so
 fine-tuning runs out of process via [`training/train_voice.py`](training/README.md).
-The app requires a **separately installed 64-bit CPython 3.11-3.13** (nothing bundled); on
-first use it creates `training-env/` and installs Piper's training package.
-Training needs a compiler + CMake for Piper's native extension, several GB of
-disk, and realistically an NVIDIA GPU; it is a one-off offline task.
+Windows release installers built from this source include a private embedded
+CPython runtime, Piper, CPU PyTorch, all resolved training dependencies and the
+precompiled native alignment/phonemizer extensions. Users do not install Python,
+pip, CMake or Visual Studio Build Tools. Runtime files stay inside the app folder;
+recordings, model downloads and training checkpoints stay in the user's data folder.
+The base checkpoint (~800 MB) is still downloaded on first training use.
+
+CPU training can take many hours. For NVIDIA acceleration, advanced users can
+select a supported Python in Settings > Voice cloning to create the external
+training environment, then install CUDA-enabled PyTorch into that generated
+`<data>/training-env` environment. GPU drivers and CUDA packages are not part
+of the CPU installer. macOS/Linux and development builds without the bundle use
+the separate Python setup described in [training/README.md](training/README.md).
+
+To prepare a Windows release payload on a build machine with x64 Python 3.13
+and Visual Studio C++ Build Tools:
+
+```powershell
+python scripts/bundle-training-runtime.py --output training-runtime
+```
+
+Then configure/build/package as usual. Windows builds require the validated
+bundle by default; `-DVT_BUNDLE_TRAINING=OFF` permits a development build without
+it. The workflow builds the bundle once, verifies it after relocation without a
+system Python search path, and tests the installed EXE's payload before uploading
+packages. The downloaded Python version and resolved dependencies are recorded
+in `training-runtime/manifest.json` and `packages.txt`; package licenses are kept.
 
 ## Licensing notes
 
@@ -175,7 +202,7 @@ disk, and realistically an NVIDIA GPU; it is a one-off offline task.
 
 | Question | Decision |
 | --- | --- |
-| Python for training | Required as a separate install (64-bit CPython 3.11–3.13), not bundled; venv created on demand. Keeps the shipped app free of a Python runtime. |
+| Python for training | Private embedded runtime and precompiled training dependencies bundled in Windows release installers; separate Python remains available for source builds and CUDA setups. |
 | GUI backend | GLFW + Direct3D 11 on Windows (OpenGL drivers added ~90 MB RSS on the test machine), GLFW + OpenGL 3 on macOS/Linux. |
 | Package manager | vcpkg (manifest mode). onnxruntime uses the official prebuilt release instead of the vcpkg port (which compiles abseil/protobuf/onnx from source); espeak-ng has no port and is built via ExternalProject. |
 | Voice source | `rhasspy/piper-voices` `voices.json` on Hugging Face; licenses surfaced through each voice's MODEL_CARD. |
