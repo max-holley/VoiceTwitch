@@ -8,7 +8,7 @@ out of process; inference never depends on Python.
 Subcommands:
   setup  --venv DIR
       Creates a virtual environment and installs Piper's training tooling.
-      Run with any Python 3.9+ interpreter.
+      Run with standard 64-bit CPython 3.11–3.13 (3.12 recommended).
 
   train  --project-dir DIR --name NAME --output OUT.onnx [options]
       Run with the venv's interpreter. Downloads the base checkpoint (cached),
@@ -24,6 +24,9 @@ import argparse
 import hashlib
 import json
 import os
+import platform
+import struct
+import sysconfig
 import re
 import shutil
 import subprocess
@@ -113,14 +116,57 @@ def download(url: str, dest: Path, label: str) -> None:
 # --------------------------------------------------------------------------- setup
 
 
+def cmd_check_python(args: argparse.Namespace | None = None) -> int:
+    """Shared preflight for auto-detection, manual setup, and existing venvs."""
+    supported = (
+        platform.python_implementation() == "CPython"
+        and (3, 11) <= sys.version_info[:2] <= (3, 13)
+        and struct.calcsize("P") == 8
+        and not sysconfig.get_config_var("Py_GIL_DISABLED")
+    )
+    if not supported:
+        print(
+            f"Unsupported training Python: {platform.python_implementation()} "
+            f"{platform.python_version()}, {struct.calcsize('P') * 8}-bit "
+            f"({sys.executable}). Install standard 64-bit Python 3.12 from python.org "
+            "and select it in Settings > Voice cloning. Training supports CPython "
+            "3.11-3.13; 32-bit and free-threaded builds are not supported.",
+            flush=True,
+        )
+        return 1
+    print(f"Training Python: {sys.executable} ({platform.python_version()}, 64-bit)", flush=True)
+    return 0
+
+
+def install_dependencies(py: Path, piper_dir: Path) -> int:
+    errors = []
+    rc = run([py, "-m", "pip", "install", "-e", ".[train]"], cwd=piper_dir,
+             on_line=lambda line: errors.append(line) if "ERROR:" in line else None)
+    if rc:
+        # Preserve pip's real cause in the status line rather than blaming every
+        # failure (including missing wheels, proxies and indexes) on a compiler.
+        detail = errors[-1] if errors else "see the training output above"
+        print(f"Piper dependency installation failed: {detail}. "
+              "Check the Python version/architecture and pip index or network settings. "
+              "A compiler is only needed when the output reports a native build error.", flush=True)
+    return rc
+
+
 def cmd_setup(args: argparse.Namespace) -> int:
     venv_dir = Path(args.venv).resolve()
-    if sys.version_info < (3, 9):
-        print("Python 3.9 or newer is required", flush=True)
+    if cmd_check_python() != 0:
         return 1
 
-    report("setup", "Creating virtual environment...")
-    venv.EnvBuilder(with_pip=True, clear=False).create(venv_dir)
+    # A failed install may have left a venv using an unsupported interpreter.
+    # Recreate only that generated environment; recordings/checkpoints live elsewhere.
+    (venv_dir / READY_MARKER).unlink(missing_ok=True)
+    existing_py = venv_python(venv_dir)
+    recreate = existing_py.exists() and run(
+        [existing_py, __file__, "check-python"]
+    ) != 0
+    report("setup", "Recreating incompatible training environment..." if recreate
+           else "Creating virtual environment...")
+    venv.EnvBuilder(with_pip=True, clear=recreate).create(venv_dir)
     py = venv_python(venv_dir)
 
     report("setup", "Upgrading pip...")
@@ -138,13 +184,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
         zip_path.unlink()
 
     report("setup", "Installing PyTorch + Piper training dependencies (this takes a while)...")
-    if run([py, "-m", "pip", "install", "-e", ".[train]"], cwd=piper_dir) != 0:
-        print(
-            "pip install failed. Piper's training package compiles a native extension; "
-            "make sure a C/C++ compiler and CMake are available "
-            "(Windows: Visual Studio Build Tools; Linux: build-essential cmake ninja-build).",
-            flush=True,
-        )
+    if install_dependencies(py, piper_dir) != 0:
         return 1
 
     # The editable install does not build espeakbridge (needs espeak-ng built from
@@ -169,6 +209,9 @@ def cmd_setup(args: argparse.Namespace) -> int:
     if run([py, "-m", "pip", "install", "cython", "onnxscript"]) != 0:
         return 1
     if run([py, "-m", "Cython.Build.Cythonize", "-i", "core.pyx"], cwd=ma_dir) != 0:
+        print("Native alignment extension build failed. Install Visual Studio Build Tools "
+              "with Desktop development with C++ on Windows (build-essential on Linux), "
+              "then retry. See the compiler output above.", flush=True)
         return 1
     target = ma_dir / "monotonic_align"
     target.mkdir(exist_ok=True)
@@ -388,6 +431,9 @@ def cmd_train(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_check = sub.add_parser("check-python", help="check training interpreter compatibility")
+    p_check.set_defaults(func=cmd_check_python)
 
     p_setup = sub.add_parser("setup", help="create the training environment")
     p_setup.add_argument("--venv", required=True)

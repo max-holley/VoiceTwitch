@@ -10,7 +10,7 @@ is Python/PyTorch. `train_voice.py` wraps that so the app can drive it.
    Each take is DC-corrected, silence-trimmed, peak-normalized to -1 dBFS and
    resampled to 22.05 kHz mono 16-bit, then saved as
    `cloned-voices/<name>/wavs/utt_NNNN.wav`.
-2. **Setup (first run only)** – finds Python 3.9+ (`py -3` / `python3`, or the
+2. **Setup (first run only)** – finds 64-bit CPython 3.11-3.13 (`py -3.12` / `python3.12`, or the
    path set in Settings) and runs `train_voice.py setup`, which creates
    `<data dir>/training-env`, downloads Piper `v1.8.0` source and installs
    `piper-tts[train]` (PyTorch, Lightning, …) plus the `monotonic_align`
@@ -26,7 +26,7 @@ is Python/PyTorch. `train_voice.py` wraps that so the app can drive it.
 
 ## Requirements
 
-* Python 3.9–3.13 installed separately (not bundled).
+* Standard 64-bit CPython 3.11–3.13 (3.12 recommended) installed separately (not bundled).
 * A C/C++ compiler + CMake for Piper's native extension
   (Windows: Visual Studio Build Tools; Linux: `build-essential cmake ninja-build`).
 * ~6–10 GB disk for PyTorch and the ~800 MB base checkpoint.
@@ -46,3 +46,19 @@ python3 train_voice.py setup --venv ~/.local/share/VoiceTwitch/training-env
 
 Training on a GPU box and copying the resulting `.onnx` + `.onnx.json` into a
 folder under `cloned-voices/` works too.
+
+## If setup previously failed
+
+Install **standard 64-bit Python 3.12** from python.org. In VoiceTwitch, leave the
+Python executable blank to auto-detect it, or select its `python.exe` in Settings
+> Voice cloning, then retry training. The app tries 3.12 before 3.11 and 3.13 and
+rejects 32-bit, free-threaded, and unsupported Python builds. An incompatible
+partially installed training environment is recreated automatically; recordings
+and cached checkpoints are kept.
+
+`No matching distribution found for onnxruntime` means pip has no compatible
+package for the selected interpreter/platform or configured package index. It
+is not a C++ compiler error. The training output now includes the selected Python
+path and retains pip's actual error. If it persists with standard x64 Python
+3.12, check pip's index/proxy/network settings. Native alignment compilation
+still requires the C++ build tools listed above.

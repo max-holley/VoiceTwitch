@@ -248,7 +248,7 @@ void trainingPanel(App& app) {
   beginCard("card_train");
   mutedText("%s",
       "Training fine-tunes a Piper base voice on your recordings using Piper's Python training tools. It runs "
-      "outside the app, needs Python 3.9+ and several GB of disk, and takes hours - an NVIDIA GPU is strongly "
+      "outside the app, needs 64-bit CPython 3.11-3.13 and several GB of disk, and takes hours - an NVIDIA GPU is strongly "
       "recommended. It is a one-off task; streaming never depends on it.");
   ImGui::TextDisabled("Training environment: %s",
                       TrainingRunner::environmentReady() ? "installed" : "will be installed on first run");

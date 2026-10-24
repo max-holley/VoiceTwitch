@@ -1,6 +1,5 @@
 #include "cloning/TrainingRunner.h"
 
-#include <regex>
 #include <system_error>
 
 #include <nlohmann/json.hpp>
@@ -164,33 +163,33 @@ bool TrainingRunner::findPython(const std::string& configured, fs::path& program
     candidates.push_back({configured, {}});
   } else {
 #ifdef _WIN32
+    for (const auto* version : {"-3.12", "-3.11", "-3.13"})
+      candidates.push_back({"py", {version}});
     candidates.push_back({"py", {"-3"}});
     candidates.push_back({"python", {}});
 #else
+    for (const auto* version : {"python3.12", "python3.11", "python3.13"})
+      candidates.push_back({version, {}});
     candidates.push_back({"python3", {}});
     candidates.push_back({"python", {}});
 #endif
   }
-  static const std::regex versionRe(R"(Python (\d+)\.(\d+))");
   for (const auto& c : candidates) {
     std::string output;
     Process p;
     std::string err;
     auto args = c.args;
-    args.push_back("--version");
+    args.insert(args.end(), {paths::toUtf8(paths::trainingScriptsDir() / "train_voice.py"), "check-python"});
     if (!p.start(c.exe, args, {}, [&](const std::string& l) { output += l; }, nullptr, err)) continue;
-    if (p.wait() != 0) continue;
-    std::smatch m;
-    if (std::regex_search(output, m, versionRe)) {
-      int major = std::stoi(m[1]), minor = std::stoi(m[2]);
-      if (major == 3 && minor >= 9) {
-        program = c.exe;
-        prefix = c.args;
-        log::info("Using {} ({})", c.exe, output);
-        return true;
-      }
-      log::warn("{} is {} - Python 3.9+ is required", c.exe, output);
+    if (p.wait() == 0) {
+      program = c.exe;
+      prefix = c.args;
+      log::info("Using {} ({})", c.exe, output);
+      onLine(output);
+      return true;
     }
+    log::warn("{}: {}", c.exe, output);
+    onLine(output);
   }
   return false;
 }
@@ -209,12 +208,12 @@ void TrainingRunner::run(TrainingRequest req) {
   }
 
   if (!environmentReady()) {
-    setStage(Stage::FindingPython, "Looking for Python 3.9+...");
+    setStage(Stage::FindingPython, "Looking for 64-bit CPython 3.11-3.13...");
     fs::path python;
     std::vector<std::string> prefix;
     if (!findPython(req.pythonPath, python, prefix)) {
       finish(Stage::Failed,
-             "Python 3.9+ not found. Install Python (python.org) or set its path in Settings > Voice cloning.");
+             "64-bit CPython 3.11-3.13 not found. Install standard 64-bit Python 3.12 (python.org) or set its path in Settings > Voice cloning.");
       return;
     }
     setStage(Stage::SettingUp, "Installing Piper training tools (first run, several GB)...");

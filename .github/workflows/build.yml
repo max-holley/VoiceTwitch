@@ -11,6 +11,27 @@ permissions:
   contents: write
 
 jobs:
+  training-setup:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Training setup regression tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Install real Windows training environment
+        run: python training/train_voice.py setup --venv "${{ runner.temp }}/training-env"
+      - name: Check training CLI and native extension
+        shell: pwsh
+        run: |
+          & "${{ runner.temp }}/training-env/Scripts/python.exe" -c "import piper.train.vits.monotonic_align.monotonic_align.core; from piper.train.__main__ import main; print('Training imports OK')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "${{ runner.temp }}/training-env/Scripts/python.exe" -m piper.train --help
+          exit $LASTEXITCODE
+
   build:
     strategy:
       fail-fast: false
@@ -68,6 +89,11 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+      - name: Package Windows installer
+        if: runner.os == 'Windows'
+        working-directory: build/${{ matrix.preset }}
+        run: cpack -G NSIS
+
       - name: Package
         working-directory: build/${{ matrix.preset }}
         run: cpack -G ZIP
@@ -75,10 +101,26 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: VoiceTwitch-${{ matrix.preset }}
-          path: build/${{ matrix.preset }}/VoiceTwitch-*.zip
+          path: |
+            build/${{ matrix.preset }}/VoiceTwitch-*.zip
+            build/${{ matrix.preset }}/VoiceTwitch-*.exe
+          if-no-files-found: error
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, training-setup]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          files: build/${{ matrix.preset }}/VoiceTwitch-*.zip
+          path: release-assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: VoiceTwitch ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/VoiceTwitch-*.zip
+            release-assets/VoiceTwitch-*.exe

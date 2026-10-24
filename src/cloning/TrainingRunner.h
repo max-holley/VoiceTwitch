@@ -28,7 +28,7 @@ struct TrainingRequest {
 // Runs the out-of-process fine-tuning workflow (Piper's training tooling is
 // Python/PyTorch). Inference stays native; this only runs on demand.
 //
-//   1. find a Python 3.9+ interpreter
+//   1. find a 64-bit CPython 3.11-3.13 interpreter
 //   2. create <data>/training-env venv + install piper1-gpl[train] (first run)
 //   3. training/train_voice.py train  -> fine-tune from a base checkpoint
 //   4. export to ONNX + config next to the project

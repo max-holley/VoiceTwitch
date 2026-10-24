@@ -57,8 +57,8 @@ void drawSettingsView(App& app) {
   sectionHeader("Voice cloning");
   beginCard("card_cloning");
   ImGui::SetNextItemWidth(ImGui::GetFontSize() * 22);
-  changed |= ImGui::InputTextWithHint("Python executable", "auto-detect (py -3 / python3)", &cfg.pythonPath);
-  helpMarker("Python 3.9+ used once to create the training environment. Leave empty to auto-detect.");
+  changed |= ImGui::InputTextWithHint("Python executable", "auto-detect (py -3.12 / python3.12)", &cfg.pythonPath);
+  helpMarker("64-bit CPython 3.11-3.13 used once to create the training environment. Leave empty to auto-detect.");
   ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
   changed |= ImGui::InputText("espeak-ng voice", &cfg.cloneEspeakVoice);
   helpMarker("Language of your recordings, e.g. en-us, en-gb, de, fr-fr.");

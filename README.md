@@ -155,7 +155,7 @@ unavailable at build time it falls back to a `0600` file and logs a warning).
 
 Inference is pure C++, but Piper's training tools are Python/PyTorch, so
 fine-tuning runs out of process via [`training/train_voice.py`](training/README.md).
-The app requires a **separately installed Python 3.9+** (nothing bundled); on
+The app requires a **separately installed 64-bit CPython 3.11-3.13** (nothing bundled); on
 first use it creates `training-env/` and installs Piper's training package.
 Training needs a compiler + CMake for Piper's native extension, several GB of
 disk, and realistically an NVIDIA GPU; it is a one-off offline task.
@@ -175,7 +175,7 @@ disk, and realistically an NVIDIA GPU; it is a one-off offline task.
 
 | Question | Decision |
 | --- | --- |
-| Python for training | Required as a separate install (3.9+), not bundled; venv created on demand. Keeps the shipped app free of a Python runtime. |
+| Python for training | Required as a separate install (64-bit CPython 3.11–3.13), not bundled; venv created on demand. Keeps the shipped app free of a Python runtime. |
 | GUI backend | GLFW + Direct3D 11 on Windows (OpenGL drivers added ~90 MB RSS on the test machine), GLFW + OpenGL 3 on macOS/Linux. |
 | Package manager | vcpkg (manifest mode). onnxruntime uses the official prebuilt release instead of the vcpkg port (which compiles abseil/protobuf/onnx from source); espeak-ng has no port and is built via ExternalProject. |
 | Voice source | `rhasspy/piper-voices` `voices.json` on Hugging Face; licenses surfaced through each voice's MODEL_CARD. |
