@@ -3,6 +3,8 @@ import argparse
 import contextlib
 import importlib.util
 import io
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +25,26 @@ class TrainingSetupTests(unittest.TestCase):
              contextlib.redirect_stdout(io.StringIO()):
             return helper.cmd_check_python()
 
+    def test_runtime_cli_does_not_import_build_only_modules(self):
+        # Reproduce the embeddable distribution's missing venv even on a full
+        # developer Python, before installing multi-GB training dependencies.
+        script = Path(helper.__file__).resolve()
+        launcher = """import importlib.abc, runpy, sys
+class NoBuildTools(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'venv', 'ensurepip', 'pip', 'Cython', 'setuptools'}:
+            raise ModuleNotFoundError('Build-only module unavailable: ' + fullname)
+sys.meta_path.insert(0, NoBuildTools())
+script, *args = sys.argv[1:]
+sys.argv = [script] + args
+runpy.run_path(script, run_name='__main__')
+"""
+        for args in (["check-python"], ["train", "--help"], ["check-runtime", "--help"]):
+            with self.subTest(args=args):
+                result = subprocess.run([sys.executable, "-I", "-c", launcher, str(script), *args],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_supported_standard_interpreters(self):
         for minor in (11, 12, 13):
             with self.subTest(minor=minor):
@@ -37,7 +59,7 @@ class TrainingSetupTests(unittest.TestCase):
 
     def test_unsupported_python_does_not_create_environment(self):
         with patch.object(helper, "cmd_check_python", return_value=1), \
-             patch.object(helper.venv, "EnvBuilder") as builder:
+             patch("venv.EnvBuilder") as builder:
             self.assertEqual(helper.cmd_setup(argparse.Namespace(venv="unused")), 1)
             builder.assert_not_called()
 
@@ -93,7 +115,7 @@ class TrainingSetupTests(unittest.TestCase):
                 recording.write_bytes(b"recording")
                 with patch.object(helper, "cmd_check_python", return_value=0), \
                      patch.object(helper, "run", side_effect=[0 if compatible else 1, 1]), \
-                     patch.object(helper.venv, "EnvBuilder") as builder, \
+                     patch("venv.EnvBuilder") as builder, \
                      contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(helper.cmd_setup(argparse.Namespace(venv=str(env))), 1)
                     builder.assert_called_once_with(with_pip=True, clear=not compatible)

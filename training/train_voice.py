@@ -33,7 +33,6 @@ import shutil
 import subprocess
 import sys
 import urllib.request
-import venv
 import zipfile
 from pathlib import Path
 
@@ -218,6 +217,10 @@ def cmd_setup(args: argparse.Namespace) -> int:
     venv_dir = Path(args.venv).resolve()
     if cmd_check_python() != 0:
         return 1
+
+    # Embedded Python intentionally has no venv. Only source/external-Python
+    # setup needs it; training and validation must not import build tools.
+    import venv
 
     # A failed install may have left a venv using an unsupported interpreter.
     # Recreate only that generated environment; recordings/checkpoints live elsewhere.

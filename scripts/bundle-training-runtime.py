@@ -18,6 +18,7 @@ import sys
 import tempfile
 import urllib.request
 import zipfile
+import venv
 
 PYTHON_VERSION = "3.13.17"
 TORCH_VERSION = "2.9.1+cpu"
@@ -63,7 +64,7 @@ def main() -> None:
         env = temp / "build-env"
         # Use the same setup path as a source build, but preinstall the CPU torch
         # wheel explicitly to keep CUDA's multi-GB libraries out of the installer.
-        helper.venv.EnvBuilder(with_pip=True).create(env)
+        venv.EnvBuilder(with_pip=True).create(env)
         py = helper.venv_python(env)
         subprocess.run([py, "-m", "pip", "install", f"torch=={TORCH_VERSION}",
                         "--index-url", "https://download.pytorch.org/whl/cpu"], check=True)
