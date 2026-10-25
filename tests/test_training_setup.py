@@ -51,6 +51,34 @@ class TrainingSetupTests(unittest.TestCase):
         self.assertIn("No matching distribution found for onnxruntime", output.getvalue())
         self.assertNotIn("make sure a C/C++ compiler", output.getvalue())
 
+    def test_alignment_build_uses_relative_paths_outside_nested_source_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / ("nested-" * 12) / "piper/train/vits/monotonic_align"
+            source.mkdir(parents=True)
+            (source / "core.pyx").write_text("def test(): return 1\n")
+            def compile_staged(cmd, cwd):
+                self.assertEqual(cmd[1:], ["setup.py", "build_ext", "--build-temp", "obj", "--build-lib", "out"])
+                self.assertNotIn(source, cwd.parents)
+                self.assertEqual((cwd / "core.pyx").read_text(), (source / "core.pyx").read_text())
+                self.assertIn("Extension('core', ['core.pyx'])", (cwd / "setup.py").read_text())
+                (cwd / "out").mkdir()
+                (cwd / "out/core.cp313-win_amd64.pyd").write_bytes(b"compiled extension")
+                return 0
+            with patch.object(helper, "run", side_effect=compile_staged):
+                self.assertEqual(helper.build_alignment(Path("python"), source), 0)
+            self.assertEqual((source / "monotonic_align/core.cp313-win_amd64.pyd").read_bytes(), b"compiled extension")
+
+    def test_failed_alignment_build_does_not_install_an_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp)
+            (source / "core.pyx").write_text("def test(): return 1\n")
+            output = io.StringIO()
+            with patch.object(helper, "run", return_value=1), contextlib.redirect_stdout(output):
+                self.assertEqual(helper.build_alignment(Path("python"), source), 1)
+            self.assertFalse((source / "monotonic_align").exists())
+            self.assertIn("actual cause", output.getvalue())
+            self.assertNotIn("Install Visual Studio", output.getvalue())
+
     def test_retry_recreates_only_incompatible_generated_environment(self):
         for compatible in (True, False):
             with self.subTest(compatible=compatible), tempfile.TemporaryDirectory() as tmp:

@@ -183,6 +183,37 @@ def install_dependencies(py: Path, piper_dir: Path) -> int:
     return rc
 
 
+def build_alignment(py: Path, ma_dir: Path) -> int:
+    # cythonize -i mirrors the absolute source path inside its object directory.
+    # On Windows this can exceed MAX_PATH even when the source itself fits.
+    # Stage only the standalone source and use relative object/output paths.
+    with tempfile.TemporaryDirectory(prefix="vtma-") as temp:
+        work = Path(temp)
+        shutil.copy2(ma_dir / "core.pyx", work / "core.pyx")
+        (work / "setup.py").write_text(
+            "from setuptools import Extension, setup\n"
+            "from Cython.Build import cythonize\n"
+            "setup(name='vt-alignment', ext_modules=cythonize(\n"
+            "    [Extension('core', ['core.pyx'])], language_level=3))\n",
+            encoding="utf-8",
+        )
+        if run([py, "setup.py", "build_ext", "--build-temp", "obj",
+                "--build-lib", "out"], cwd=work) != 0:
+            print("Native alignment extension build failed. See the compiler output above "
+                  "for the actual cause (compiler configuration, paths or permissions).",
+                  flush=True)
+            return 1
+        built = [p for p in (work / "out").glob("core*") if p.suffix in (".so", ".pyd")]
+        if not built:
+            print("monotonic_align build produced no extension module", flush=True)
+            return 1
+        target = ma_dir / "monotonic_align"
+        target.mkdir(exist_ok=True)
+        for extension in built:
+            shutil.copy2(extension, target / extension.name)
+    return 0
+
+
 def cmd_setup(args: argparse.Namespace) -> int:
     venv_dir = Path(args.venv).resolve()
     if cmd_check_python() != 0:
@@ -239,19 +270,8 @@ def cmd_setup(args: argparse.Namespace) -> int:
     # torch's ONNX exporter imports onnxscript, which piper's extras don't pull in.
     if run([py, "-m", "pip", "install", "cython", "onnxscript"]) != 0:
         return 1
-    if run([py, "-m", "Cython.Build.Cythonize", "-i", "core.pyx"], cwd=ma_dir) != 0:
-        print("Native alignment extension build failed. Install Visual Studio Build Tools "
-              "with Desktop development with C++ on Windows (build-essential on Linux), "
-              "then retry. See the compiler output above.", flush=True)
+    if build_alignment(py, ma_dir) != 0:
         return 1
-    target = ma_dir / "monotonic_align"
-    target.mkdir(exist_ok=True)
-    built = [p for p in ma_dir.iterdir() if p.name.startswith("core") and p.suffix in (".so", ".pyd")]
-    if not built:
-        print("monotonic_align build produced no extension module", flush=True)
-        return 1
-    for p in built:
-        shutil.move(str(p), str(target / p.name))
 
     # Sanity check: the training entry point imports.
     if run([py, "-c", "import piper.train, torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"]) != 0:
