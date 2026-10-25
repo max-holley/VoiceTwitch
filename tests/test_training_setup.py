@@ -69,7 +69,9 @@ class TrainingSetupTests(unittest.TestCase):
                      contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(helper.cmd_setup(argparse.Namespace(venv=str(env))), 1)
                     builder.assert_called_once_with(with_pip=True, clear=not compatible)
-                    builder.return_value.create.assert_called_once_with(env)
+                    # Windows TEMP may use an 8.3 alias (RUNNER~1); setup
+                    # resolves it to the full path before creating the venv.
+                    builder.return_value.create.assert_called_once_with(env.resolve())
                 self.assertFalse(marker.exists())
                 self.assertEqual(recording.read_bytes(), b"recording")
 
